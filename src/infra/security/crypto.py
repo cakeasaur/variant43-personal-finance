@@ -17,7 +17,8 @@ except Exception:  # pragma: no cover - platform-dependent (e.g. Android build w
 MAGIC = b"PFM1"  # Personal Finance Manager v1
 SALT_LEN = 16
 NONCE_LEN = 12  # AESGCM nonce length
-KEY_LEN = 32  # 256-bit
+KEY_LEN = 32  # 256-bit AES key
+MIN_PASSPHRASE_LEN = 1  # enforce non-empty; UI may impose stricter rules
 
 
 class InvalidPasswordError(Exception):
