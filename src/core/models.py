@@ -4,6 +4,13 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 
+__all__ = [
+    "TransactionType",
+    "Transaction",
+    "Goal",
+    "Reminder",
+]
+
 
 class TransactionType(StrEnum):
     INCOME = "income"
