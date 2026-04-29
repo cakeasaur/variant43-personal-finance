@@ -7,8 +7,6 @@ from enum import StrEnum
 __all__ = [
     "TransactionType",
     "Transaction",
-    "Goal",
-    "Reminder",
 ]
 
 
