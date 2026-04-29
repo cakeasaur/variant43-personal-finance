@@ -1,0 +1,29 @@
+flowchart LR
+  subgraph UI[UI (Kivy)]
+    Screens[Screens]
+    Widgets[Widgets]
+  end
+
+  subgraph APP[Application / Use cases]
+    UC[Use-case services]
+  end
+
+  subgraph DOMAIN[Domain]
+    Models[Models & Validation]
+    Reports[Aggregations & Reports]
+  end
+
+  subgraph INFRA[Infrastructure]
+    Repo[SQLite Repositories]
+    DB[SQLite DB file]
+    Sec[Security (KDF/Crypto)]
+  end
+
+  Screens --> UC
+  Widgets --> UC
+  UC --> Models
+  UC --> Reports
+  UC --> Repo
+  Repo --> DB
+  Sec --> DB
+

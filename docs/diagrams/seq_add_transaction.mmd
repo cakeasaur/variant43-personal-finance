@@ -1,0 +1,17 @@
+sequenceDiagram
+  actor User as Пользователь
+  participant UI as UI (Kivy)
+  participant UC as Use case: AddTransaction
+  participant Repo as TransactionRepository
+  participant DB as SQLite
+
+  User->>UI: Заполнить форму (сумма, дата, категория)
+  UI->>UC: submit(data)
+  UC->>UC: validate(data)
+  UC->>Repo: create(transaction)
+  Repo->>DB: INSERT INTO transactions (...)
+  DB-->>Repo: OK (id)
+  Repo-->>UC: transaction_id
+  UC-->>UI: success
+  UI-->>User: Транзакция добавлена
+

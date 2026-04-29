@@ -1,0 +1,50 @@
+erDiagram
+  CATEGORIES ||--o{ TRANSACTIONS : categorizes
+
+  CATEGORIES {
+    int id PK
+    string name
+    string kind
+    string color
+    string icon
+    string created_at
+    string updated_at
+  }
+
+  TRANSACTIONS {
+    int id PK
+    string type
+    int amount_cents
+    string occurred_at
+    int category_id FK
+    string note
+    string created_at
+    string updated_at
+  }
+
+  GOALS {
+    int id PK
+    string title
+    int target_amount_cents
+    int current_amount_cents
+    string deadline
+    string created_at
+    string updated_at
+  }
+
+  REMINDERS {
+    int id PK
+    string title
+    int amount_cents
+    string due_date
+    string recurrence
+    int is_done
+    string created_at
+    string updated_at
+  }
+
+  SETTINGS {
+    string key PK
+    string value
+  }
+
