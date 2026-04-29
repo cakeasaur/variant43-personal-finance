@@ -17,6 +17,11 @@ def test_transaction_rejects_negative_amount() -> None:
         Transaction(type=TransactionType.EXPENSE, amount_cents=-1, occurred_at=dt(2026, 1, 1))
 
 
+def test_transaction_rejects_zero_amount() -> None:
+    with pytest.raises(ValueError):
+        Transaction(type=TransactionType.INCOME, amount_cents=0, occurred_at=dt(2026, 1, 1))
+
+
 def test_totals_for_period_filters_by_date_inclusive() -> None:
     start = dt(2026, 1, 1)
     end = dt(2026, 1, 31, 23, 59)
