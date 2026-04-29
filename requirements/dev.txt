@@ -1,3 +1,5 @@
+# Dev / CI tooling — pinned for reproducibility.
+# Update by running: pip install -U <package> && pip freeze | grep <package>
 pytest==9.0.3
 ruff==0.15.11
 pip-audit==2.9.0
