@@ -1,0 +1,6 @@
+services:
+  checks:
+    build: .
+    working_dir: /app
+    command: ["sh", "-c", "ruff check . && pytest -q && pip_audit -r requirements/ci.txt -r requirements/dev.txt"]
+
