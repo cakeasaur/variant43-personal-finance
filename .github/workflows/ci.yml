@@ -32,4 +32,6 @@ jobs:
       - name: Dependency audit (pip-audit)
         run: python -m pip_audit -r requirements/ci.txt -r requirements/dev.txt
 
+  # Future: add android_build job here once Buildozer + WSL2 setup is stable.
+
 
