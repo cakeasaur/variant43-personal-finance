@@ -11,7 +11,12 @@ def connect(db_path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA journal_mode = WAL;")
+    # Use DELETE journal mode (not WAL) for the temporary plaintext DB.
+    # WAL creates sidecar files (*-wal, *-shm) that persist on disk even after
+    # the main file is closed and re-encrypted, leaking plaintext data in the
+    # temp directory. DELETE mode writes all changes directly to the main file —
+    # no sidecar files, no plaintext leak after encryption.
+    conn.execute("PRAGMA journal_mode = DELETE;")
     return conn
 
 
