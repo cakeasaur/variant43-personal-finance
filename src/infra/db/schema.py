@@ -3,8 +3,9 @@ from __future__ import annotations
 import sqlite3
 
 SCHEMA_VERSION = 3
-# Bump SCHEMA_VERSION whenever the schema changes in a backwards-incompatible way.
-# The app checks this value at startup and re-creates the DB if needed.
+# NOTE: schema migrations are not supported in this version.
+# All tables are created with IF NOT EXISTS — existing data is preserved
+# on upgrade, but incompatible schema changes require a manual DB reset.
 
 
 def init_schema(conn: sqlite3.Connection) -> None:
