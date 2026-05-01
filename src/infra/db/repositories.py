@@ -96,18 +96,40 @@ class TransactionRepository:
         )
         return int(cur.lastrowid)
 
-    def list_between(self, *, start: datetime, end: datetime) -> list[StoredTransaction]:
+    def list_between(
+        self,
+        *,
+        start: datetime,
+        end: datetime,
+        tx_type: TransactionType | None = None,
+    ) -> list[StoredTransaction]:
+        """Return transactions in [start, end], optionally filtered by type.
+
+        `tx_type=None` returns all types (income + expense).
+        Ordered by occurred_at DESC, id DESC.
+        """
         if end < start:
             raise ValueError("end must be >= start")
-        rows = self.conn.execute(
-            """
-            SELECT id, type, amount_cents, occurred_at, category_id, note
-            FROM transactions
-            WHERE occurred_at >= ? AND occurred_at <= ?
-            ORDER BY occurred_at DESC, id DESC;
-            """,
-            (_dt_to_iso(start), _dt_to_iso(end)),
-        ).fetchall()
+        if tx_type is not None:
+            rows = self.conn.execute(
+                """
+                SELECT id, type, amount_cents, occurred_at, category_id, note
+                FROM transactions
+                WHERE occurred_at >= ? AND occurred_at <= ? AND type = ?
+                ORDER BY occurred_at DESC, id DESC;
+                """,
+                (_dt_to_iso(start), _dt_to_iso(end), str(tx_type)),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                """
+                SELECT id, type, amount_cents, occurred_at, category_id, note
+                FROM transactions
+                WHERE occurred_at >= ? AND occurred_at <= ?
+                ORDER BY occurred_at DESC, id DESC;
+                """,
+                (_dt_to_iso(start), _dt_to_iso(end)),
+            ).fetchall()
 
         out: list[StoredTransaction] = []
         for r in rows:
@@ -252,6 +274,44 @@ class GoalRepository:
             ),
         )
 
+    def get(self, *, goal_id: int) -> Goal | None:
+        row = self.conn.execute(
+            "SELECT id, name, target_cents, current_cents, deadline_at, note FROM goals WHERE id=?;",
+            (int(goal_id),),
+        ).fetchone()
+        if row is None:
+            return None
+        return Goal(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            target_cents=int(row["target_cents"]),
+            current_cents=int(row["current_cents"]),
+            deadline_at=_dt_from_iso(row["deadline_at"]) if row["deadline_at"] else None,
+            note=row["note"],
+        )
+
+    def deposit(self, *, goal_id: int, amount_cents: int) -> Goal:
+        """Increment current_cents by amount_cents, capped at target_cents.
+
+        Returns the updated Goal. Raises ValueError if amount_cents <= 0
+        or goal_id does not exist.
+        """
+        if amount_cents <= 0:
+            raise ValueError("amount_cents must be > 0")
+        now = _now_iso()
+        self.conn.execute(
+            """
+            UPDATE goals
+            SET current_cents = MIN(target_cents, current_cents + ?), updated_at = ?
+            WHERE id = ?;
+            """,
+            (int(amount_cents), now, int(goal_id)),
+        )
+        goal = self.get(goal_id=goal_id)
+        if goal is None:
+            raise ValueError(f"goal {goal_id} not found")
+        return goal
+
     def delete(self, *, goal_id: int) -> None:
         self.conn.execute("DELETE FROM goals WHERE id=?;", (int(goal_id),))
 
@@ -285,6 +345,40 @@ def _add_months(dt: datetime, months: int) -> datetime:
 class ReminderRepository:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
+
+    def list_upcoming(self, *, within_days: int, now: datetime | None = None) -> list[Reminder]:
+        """Return reminders with due_at in [now, now + within_days], sorted ascending.
+
+        Useful for displaying the nearest upcoming reminders in the UI (FR-06).
+        `now` defaults to current UTC time; can be injected for testing.
+        """
+        if within_days < 0:
+            raise ValueError("within_days must be >= 0")
+        if now is None:
+            now = datetime.now(UTC)
+        if now.tzinfo is None:
+            raise ValueError("now must be timezone-aware")
+        cutoff = now + timedelta(days=within_days)
+        rows = self.conn.execute(
+            """
+            SELECT id, name, amount_cents, due_at, recurrence, note
+            FROM reminders
+            WHERE due_at >= ? AND due_at <= ?
+            ORDER BY due_at ASC, id DESC;
+            """,
+            (_dt_to_iso(now), _dt_to_iso(cutoff)),
+        ).fetchall()
+        return [
+            Reminder(
+                id=int(r["id"]),
+                name=str(r["name"]),
+                amount_cents=int(r["amount_cents"]) if r["amount_cents"] is not None else None,
+                due_at=_dt_from_iso(r["due_at"]),
+                recurrence=str(r["recurrence"]),
+                note=r["note"],
+            )
+            for r in rows
+        ]
 
     def list_due_sorted(self) -> list[Reminder]:
         rows = self.conn.execute(
