@@ -226,6 +226,39 @@ def test_reminders_create_list_mark_done_and_delete(conn):
     assert [r for r in repo.list_due_sorted() if r.id == rid_daily] == []
 
 
+def test_reminder_list_upcoming_filters_by_window(conn):
+    repo = ReminderRepository(conn)
+    now = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+
+    with transaction(conn):
+        repo.create(name="Сегодня",    due_at=now + timedelta(hours=2))
+        repo.create(name="Через 5д",   due_at=now + timedelta(days=5))
+        repo.create(name="Через 10д",  due_at=now + timedelta(days=10))
+        repo.create(name="Прошлое",    due_at=now - timedelta(days=1))
+
+    upcoming = repo.list_upcoming(within_days=7, now=now)
+    names = [r.name for r in upcoming]
+    assert "Сегодня"   in names
+    assert "Через 5д"  in names
+    assert "Через 10д" not in names
+    assert "Прошлое"   not in names
+
+
+def test_reminder_list_upcoming_empty_window(conn):
+    repo = ReminderRepository(conn)
+    now = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    with transaction(conn):
+        repo.create(name="Будущее", due_at=now + timedelta(days=5))
+
+    assert repo.list_upcoming(within_days=0, now=now) == []
+
+
+def test_reminder_list_upcoming_rejects_negative(conn):
+    repo = ReminderRepository(conn)
+    with pytest.raises(ValueError):
+        repo.list_upcoming(within_days=-1)
+
+
 def test_reminders_validation(conn):
     repo = ReminderRepository(conn)
     due = datetime(2026, 4, 25, 9, 0, tzinfo=UTC)
