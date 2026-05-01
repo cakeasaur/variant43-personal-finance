@@ -116,6 +116,39 @@ def test_list_between_ordering_and_filtering(conn):
     assert [r.transaction.amount_cents for r in rows] == [200, 100]  # DESC by occurred_at
 
 
+def test_list_between_type_filter_income_only(conn):
+    repo = TransactionRepository(conn)
+    base = datetime(2026, 3, 1, 10, 0, tzinfo=UTC)
+    with transaction(conn):
+        repo.create(Transaction(TransactionType.INCOME,  500, base))
+        repo.create(Transaction(TransactionType.EXPENSE, 200, base + timedelta(minutes=1)))
+        repo.create(Transaction(TransactionType.INCOME,  300, base + timedelta(minutes=2)))
+
+    result = repo.list_between(
+        start=base - timedelta(hours=1),
+        end=base + timedelta(hours=1),
+        tx_type=TransactionType.INCOME,
+    )
+    assert all(r.transaction.type == TransactionType.INCOME for r in result)
+    assert len(result) == 2
+
+
+def test_list_between_type_filter_expense_only(conn):
+    repo = TransactionRepository(conn)
+    base = datetime(2026, 3, 2, 10, 0, tzinfo=UTC)
+    with transaction(conn):
+        repo.create(Transaction(TransactionType.INCOME,  100, base))
+        repo.create(Transaction(TransactionType.EXPENSE, 400, base + timedelta(minutes=1)))
+
+    result = repo.list_between(
+        start=base - timedelta(hours=1),
+        end=base + timedelta(hours=1),
+        tx_type=TransactionType.EXPENSE,
+    )
+    assert len(result) == 1
+    assert result[0].transaction.amount_cents == 400
+
+
 def test_list_between_rejects_invalid_range(conn):
     repo = TransactionRepository(conn)
     now = datetime.now(UTC)
