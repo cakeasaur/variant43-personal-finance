@@ -252,6 +252,44 @@ class GoalRepository:
             ),
         )
 
+    def get(self, *, goal_id: int) -> Goal | None:
+        row = self.conn.execute(
+            "SELECT id, name, target_cents, current_cents, deadline_at, note FROM goals WHERE id=?;",
+            (int(goal_id),),
+        ).fetchone()
+        if row is None:
+            return None
+        return Goal(
+            id=int(row["id"]),
+            name=str(row["name"]),
+            target_cents=int(row["target_cents"]),
+            current_cents=int(row["current_cents"]),
+            deadline_at=_dt_from_iso(row["deadline_at"]) if row["deadline_at"] else None,
+            note=row["note"],
+        )
+
+    def deposit(self, *, goal_id: int, amount_cents: int) -> Goal:
+        """Increment current_cents by amount_cents, capped at target_cents.
+
+        Returns the updated Goal. Raises ValueError if amount_cents <= 0
+        or goal_id does not exist.
+        """
+        if amount_cents <= 0:
+            raise ValueError("amount_cents must be > 0")
+        now = _now_iso()
+        self.conn.execute(
+            """
+            UPDATE goals
+            SET current_cents = MIN(target_cents, current_cents + ?), updated_at = ?
+            WHERE id = ?;
+            """,
+            (int(amount_cents), now, int(goal_id)),
+        )
+        goal = self.get(goal_id=goal_id)
+        if goal is None:
+            raise ValueError(f"goal {goal_id} not found")
+        return goal
+
     def delete(self, *, goal_id: int) -> None:
         self.conn.execute("DELETE FROM goals WHERE id=?;", (int(goal_id),))
 
