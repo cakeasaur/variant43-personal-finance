@@ -163,6 +163,44 @@ def test_goals_crud_and_validation(conn):
     assert [x for x in goals.list_all() if x.id == gid] == []
 
 
+def test_goal_get_returns_none_for_missing(conn):
+    goals = GoalRepository(conn)
+    assert goals.get(goal_id=9999) is None
+
+
+def test_goal_deposit_increments_and_caps(conn):
+    goals = GoalRepository(conn)
+    with transaction(conn):
+        gid = goals.create(name="Отпуск", target_cents=10_000, current_cents=0)
+
+    with transaction(conn):
+        g = goals.deposit(goal_id=gid, amount_cents=3_000)
+    assert g.current_cents == 3_000
+    assert round(g.progress_ratio, 2) == 0.3
+
+    # Deposit more than remaining — must cap at target
+    with transaction(conn):
+        g = goals.deposit(goal_id=gid, amount_cents=99_999)
+    assert g.current_cents == g.target_cents
+    assert g.progress_ratio == 1.0
+
+
+def test_goal_deposit_rejects_non_positive(conn):
+    goals = GoalRepository(conn)
+    with transaction(conn):
+        gid = goals.create(name="Тест", target_cents=500)
+    with pytest.raises(ValueError):
+        goals.deposit(goal_id=gid, amount_cents=0)
+    with pytest.raises(ValueError):
+        goals.deposit(goal_id=gid, amount_cents=-100)
+
+
+def test_goal_deposit_raises_for_missing_goal(conn):
+    goals = GoalRepository(conn)
+    with pytest.raises(ValueError):
+        goals.deposit(goal_id=9999, amount_cents=100)
+
+
 def test_reminders_create_list_mark_done_and_delete(conn):
     repo = ReminderRepository(conn)
     due = datetime(2026, 4, 25, 9, 0, tzinfo=UTC)
