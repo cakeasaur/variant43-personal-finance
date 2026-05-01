@@ -324,6 +324,40 @@ class ReminderRepository:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
 
+    def list_upcoming(self, *, within_days: int, now: datetime | None = None) -> list[Reminder]:
+        """Return reminders with due_at in [now, now + within_days], sorted ascending.
+
+        Useful for displaying the nearest upcoming reminders in the UI (FR-06).
+        `now` defaults to current UTC time; can be injected for testing.
+        """
+        if within_days < 0:
+            raise ValueError("within_days must be >= 0")
+        if now is None:
+            now = datetime.now(UTC)
+        if now.tzinfo is None:
+            raise ValueError("now must be timezone-aware")
+        cutoff = now + timedelta(days=within_days)
+        rows = self.conn.execute(
+            """
+            SELECT id, name, amount_cents, due_at, recurrence, note
+            FROM reminders
+            WHERE due_at >= ? AND due_at <= ?
+            ORDER BY due_at ASC, id DESC;
+            """,
+            (_dt_to_iso(now), _dt_to_iso(cutoff)),
+        ).fetchall()
+        return [
+            Reminder(
+                id=int(r["id"]),
+                name=str(r["name"]),
+                amount_cents=int(r["amount_cents"]) if r["amount_cents"] is not None else None,
+                due_at=_dt_from_iso(r["due_at"]),
+                recurrence=str(r["recurrence"]),
+                note=r["note"],
+            )
+            for r in rows
+        ]
+
     def list_due_sorted(self) -> list[Reminder]:
         rows = self.conn.execute(
             """
