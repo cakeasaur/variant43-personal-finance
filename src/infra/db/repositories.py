@@ -96,18 +96,40 @@ class TransactionRepository:
         )
         return int(cur.lastrowid)
 
-    def list_between(self, *, start: datetime, end: datetime) -> list[StoredTransaction]:
+    def list_between(
+        self,
+        *,
+        start: datetime,
+        end: datetime,
+        tx_type: TransactionType | None = None,
+    ) -> list[StoredTransaction]:
+        """Return transactions in [start, end], optionally filtered by type.
+
+        `tx_type=None` returns all types (income + expense).
+        Ordered by occurred_at DESC, id DESC.
+        """
         if end < start:
             raise ValueError("end must be >= start")
-        rows = self.conn.execute(
-            """
-            SELECT id, type, amount_cents, occurred_at, category_id, note
-            FROM transactions
-            WHERE occurred_at >= ? AND occurred_at <= ?
-            ORDER BY occurred_at DESC, id DESC;
-            """,
-            (_dt_to_iso(start), _dt_to_iso(end)),
-        ).fetchall()
+        if tx_type is not None:
+            rows = self.conn.execute(
+                """
+                SELECT id, type, amount_cents, occurred_at, category_id, note
+                FROM transactions
+                WHERE occurred_at >= ? AND occurred_at <= ? AND type = ?
+                ORDER BY occurred_at DESC, id DESC;
+                """,
+                (_dt_to_iso(start), _dt_to_iso(end), str(tx_type)),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                """
+                SELECT id, type, amount_cents, occurred_at, category_id, note
+                FROM transactions
+                WHERE occurred_at >= ? AND occurred_at <= ?
+                ORDER BY occurred_at DESC, id DESC;
+                """,
+                (_dt_to_iso(start), _dt_to_iso(end)),
+            ).fetchall()
 
         out: list[StoredTransaction] = []
         for r in rows:
