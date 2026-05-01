@@ -20,8 +20,40 @@
 
 ### 4.4 Защита данных
 Реализовано шифрование файла БД:
-- контейнер AES-GCM;
-- ключ из пароля через scrypt;
+- контейнер AES-GCM (256-бит), аутентифицирует целостность данных;
+- ключ получается из пароля через scrypt (n=2¹⁴, r=8, p=1) — устойчив к GPU-атакам;
+- формат контейнера: MAGIC(4) + salt(16) + nonce(12) + ciphertext;
 - ввод пароля при запуске приложения;
-- пере-шифрование при завершении работы приложения (best-effort).
+- пере-шифрование при завершении работы приложения (best-effort);
+- используется `journal_mode=DELETE`, чтобы исключить утечку данных через
+  WAL-файлы (*-wal, *-shm) во временной директории.
+
+### 4.5 Репозиторный слой
+Доступ к данным инкапсулирован в четырёх репозиториях:
+
+| Репозиторий | Ключевые методы |
+|------------|----------------|
+| `CategoryRepository` | `ensure_defaults()`, `list_all()`, `create()`, `update()`, `delete()` |
+| `TransactionRepository` | `create()`, `list_between(tx_type?)`, `update()`, `delete()` |
+| `GoalRepository` | `create()`, `get()`, `deposit()`, `update()`, `delete()` |
+| `ReminderRepository` | `create()`, `list_upcoming(within_days)`, `list_due_sorted()`, `mark_done()`, `delete()` |
+
+`GoalRepository.deposit()` выполняет атомарный инкремент с ограничением через
+`MIN(target_cents, current_cents + ?)` на уровне SQL.
+
+`ReminderRepository.list_upcoming(within_days)` фильтрует напоминания
+по окну `[now, now + within_days]` — используется для виджета "ближайшие".
+
+### 4.6 Тестирование
+Автоматические тесты расположены в `tests/`:
+
+| Файл | Что проверяет |
+|------|--------------|
+| `test_core_reporting.py` | доменная логика агрегаций (totals, by-category, by-day) |
+| `test_crypto.py` | шифрование/дешифрование, отклонение неверного пароля |
+| `test_infra_db.py` | репозитории, транзакционность, валидации |
+| `test_smoke.py` | импорт всех слоёв, инициализация схемы |
+
+CI запускает `ruff` (линтер) + `pytest` + `pip-audit` (проверка CVE)
+на каждый push через GitHub Actions.
 
