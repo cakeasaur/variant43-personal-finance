@@ -25,6 +25,10 @@ coverage.xml
 Thumbs.db
 .vscode/
 
+# Claude Code
+CLAUDE.md
+.claude/
+
 # Kivy
 *.kv~ 
 *.log
