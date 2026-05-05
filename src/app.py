@@ -44,12 +44,6 @@ from src.infra.security.crypto import (
 
 
 def _runtime_root() -> Path:
-    """
-    Project root at runtime.
-
-    - Source run: repository root (parent of `src/`)
-    - PyInstaller: temporary extract dir (`sys._MEIPASS`)
-    """
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
         return Path(meipass)
@@ -60,7 +54,6 @@ PROJECT_ROOT = _runtime_root()
 
 
 def _runtime_data_dir() -> Path:
-    """Writable data directory for the encrypted/plaintext DB files."""
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent / "data"
     return PROJECT_ROOT / "data"
@@ -77,20 +70,10 @@ ICON_REMINDERS = str(ASSETS_DIR / "icon_reminders.png")
 
 
 def encryption_enabled() -> bool:
-    """
-    Encryption is supported on desktop builds, but is optional on Android.
-
-    - Android builds can disable encryption to keep the APK build reproducible
-      (cryptography may be hard to compile under python-for-android).
-    - Desktop remains encrypted by default.
-    """
     if str(os.environ.get("PF_DISABLE_ENCRYPTION", "")).strip() in {"1", "true", "yes", "on"}:
         return False
     try:
-        from kivy.utils import (
-            platform,  # local import: Kivy may not be imported in some tooling contexts
-        )
-
+        from kivy.utils import platform
         if platform == "android":
             return False
     except Exception:
@@ -99,10 +82,6 @@ def encryption_enabled() -> bool:
 
 
 def _cleanup_orphaned_plaintext_dbs() -> None:
-    """
-    Remove plaintext DB files left behind by previous sessions that crashed
-    before on_stop() could encrypt and delete them.
-    """
     pattern = os.path.join(tempfile.gettempdir(), "pfm_*.sqlite3")
     for leftover in glob.glob(pattern):
         try:
@@ -112,12 +91,6 @@ def _cleanup_orphaned_plaintext_dbs() -> None:
 
 
 def _new_temp_plaintext_db_path() -> Path:
-    """
-    Create a unique temp path for a plaintext SQLite database.
-
-    We keep plaintext out of `data/` to reduce the chance of leaving readable data
-    behind (e.g. if the app crashes before `on_stop` runs).
-    """
     fd, p = tempfile.mkstemp(prefix="pfm_", suffix=".sqlite3")
     try:
         os.close(fd)
@@ -129,25 +102,25 @@ def _new_temp_plaintext_db_path() -> Path:
 
 
 def _remove_file_best_effort(path: Path) -> None:
-    """Delete a file ignoring any errors (used as atexit handler)."""
     try:
         path.unlink(missing_ok=True)
     except Exception:
         pass
 
-# App-wide palette (dark “finance app” — closer to CoinKeeper / wallet UIs)
+
+# ── Palette ───────────────────────────────────────────────────────────────────
 COL_BG = (0.06, 0.07, 0.09, 1)
+COL_SIDEBAR = (0.07, 0.08, 0.11, 1)
 COL_SURFACE = (0.11, 0.13, 0.17, 1)
 COL_SURFACE_ELEV = (0.14, 0.16, 0.21, 1)
 COL_BORDER = (0.22, 0.25, 0.32, 1)
 COL_TEXT = (0.94, 0.95, 0.97, 1)
 COL_MUTED = (0.62, 0.66, 0.74, 1)
-COL_ACCENT = (0.18, 0.72, 0.62, 1)  # mint / teal
+COL_ACCENT = (0.18, 0.72, 0.62, 1)
 COL_ACCENT_DIM = (0.12, 0.48, 0.42, 1)
 COL_INCOME = (0.35, 0.88, 0.55, 1)
 COL_EXPENSE = (0.98, 0.52, 0.52, 1)
 COL_DANGER = (0.96, 0.30, 0.30, 1)
-# Toolbar / icon contrast (icons were nearly invisible on flat COL_SURFACE_ELEV)
 COL_TOOLBAR_BTN = (0.22, 0.25, 0.32, 1)
 ICON_TINT_DEFAULT = (0.82, 0.98, 0.96, 1)
 ICON_TINT_PRESSED = (0.55, 0.92, 0.88, 1)
@@ -159,24 +132,24 @@ FS_SMALL = 12
 FS_AMOUNT = 17
 
 MONTH_NAMES_RU = (
-    "",
-    "январь",
-    "февраль",
-    "март",
-    "апрель",
-    "май",
-    "июнь",
-    "июль",
-    "август",
-    "сентябрь",
-    "октябрь",
-    "ноябрь",
-    "декабрь",
+    "", "январь", "февраль", "март", "апрель", "май", "июнь",
+    "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
 )
 
 
 def format_rub(cents: int) -> str:
     return f"{cents / 100:,.2f}".replace(",", " ")
+
+
+def _ops_word(n: int) -> str:
+    """Russian plural for 'операция'."""
+    if 11 <= n % 100 <= 19:
+        return "операций"
+    if n % 10 == 1:
+        return "операция"
+    if 2 <= n % 10 <= 4:
+        return "операции"
+    return "операций"
 
 
 def month_title_ru(dt: datetime) -> str:
@@ -250,7 +223,6 @@ def ui_spinner(**kwargs) -> Spinner:
 
 
 def style_popup(popup: Popup) -> None:
-    """Tune Kivy Popup chrome so it matches our dark surfaces (avoids flat black sheets)."""
     popup.title_color = COL_TEXT
     popup.title_size = "17sp"
     popup.separator_color = COL_ACCENT_DIM
@@ -282,7 +254,6 @@ def recurrence_display(value: str) -> str:
 
 
 def parse_money(text: str) -> int:
-    """Convert a user-entered money string to integer cents using Decimal to avoid float rounding."""
     try:
         cents = (Decimal(text.strip().replace(",", ".")) * 100).to_integral_value()
         return int(cents)
@@ -290,9 +261,9 @@ def parse_money(text: str) -> int:
         raise ValueError("Некорректная сумма") from exc
 
 
-class ModalSheet(BoxLayout):
-    """Root widget for Popup content: solid themed panel behind all children."""
+# ── Base widgets ──────────────────────────────────────────────────────────────
 
+class ModalSheet(BoxLayout):
     def __init__(self, **kwargs) -> None:
         super().__init__(orientation="vertical", padding=18, spacing=14, **kwargs)
         with self.canvas.before:
@@ -311,8 +282,6 @@ class ModalSheet(BoxLayout):
 
 
 class BarTrack(Widget):
-    """Horizontal bar 0..ratio (for mini-charts in reports / goal progress)."""
-
     def __init__(self, ratio: float, fill_color: tuple[float, float, float, float], **kwargs) -> None:
         super().__init__(size_hint_y=None, height=12, **kwargs)
         self.ratio = max(0.0, min(1.0, ratio))
@@ -334,39 +303,15 @@ class BarTrack(Widget):
 
 
 class ReportBarRow(BoxLayout):
-    """One named metric with value + bar (CoinKeeper-style row)."""
-
-    def __init__(
-        self,
-        name: str,
-        value_cents: int,
-        *,
-        max_cents: int,
-        bar_color: tuple[float, float, float, float],
-        **kwargs,
-    ) -> None:
+    def __init__(self, name: str, value_cents: int, *, max_cents: int,
+                 bar_color: tuple[float, float, float, float], **kwargs) -> None:
         super().__init__(orientation="vertical", spacing=6, size_hint_y=None, height=52, **kwargs)
         top = BoxLayout(orientation="horizontal", size_hint_y=None, height=22, spacing=8)
-        nm = Label(
-            text=name,
-            color=COL_TEXT,
-            font_size=FS_BODY,
-            halign="left",
-            valign="middle",
-            size_hint_x=0.62,
-            shorten=True,
-            shorten_from="right",
-        )
+        nm = Label(text=name, color=COL_TEXT, font_size=FS_BODY, halign="left", valign="middle",
+                   size_hint_x=0.62, shorten=True, shorten_from="right")
         nm.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
-        val = Label(
-            text=format_rub(value_cents),
-            color=COL_MUTED,
-            font_size=FS_SMALL,
-            bold=True,
-            halign="right",
-            valign="middle",
-            size_hint_x=0.38,
-        )
+        val = Label(text=format_rub(value_cents), color=COL_MUTED, font_size=FS_SMALL, bold=True,
+                    halign="right", valign="middle", size_hint_x=0.38)
         val.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         top.add_widget(nm)
         top.add_widget(val)
@@ -376,8 +321,6 @@ class ReportBarRow(BoxLayout):
 
 
 class SectionCard(BoxLayout):
-    """Titled block with optional subtitle and vertical body (report / list sections)."""
-
     def __init__(self, title: str, *, subtitle: str | None = None, **kwargs) -> None:
         super().__init__(orientation="vertical", spacing=10, padding=16, size_hint_y=None, **kwargs)
         with self.canvas.before:
@@ -385,35 +328,18 @@ class SectionCard(BoxLayout):
             self._bg = RoundedRectangle(radius=[18, 18, 18, 18])
         self.bind(pos=self._sync_bg, size=self._sync_bg)
 
-        self._heading = Label(
-            text=title,
-            color=COL_TEXT,
-            font_size=FS_BODY,
-            bold=True,
-            halign="left",
-            valign="middle",
-            size_hint_x=1,
-            size_hint_y=None,
-            height=28,
-            max_lines=2,
-        )
+        self._heading = Label(text=title, color=COL_TEXT, font_size=FS_BODY, bold=True,
+                              halign="left", valign="middle", size_hint_x=1,
+                              size_hint_y=None, height=28, max_lines=2)
         self.add_widget(self._heading)
         self.bind(width=self._sync_heading_width)
         self._heading.bind(texture_size=self._reflow_height)
 
         self._subtitle: Label | None = None
         if subtitle:
-            self._subtitle = Label(
-                text=subtitle,
-                color=COL_MUTED,
-                font_size=FS_SMALL,
-                halign="left",
-                valign="top",
-                size_hint_x=1,
-                size_hint_y=None,
-                height=44,
-                max_lines=4,
-            )
+            self._subtitle = Label(text=subtitle, color=COL_MUTED, font_size=FS_SMALL,
+                                   halign="left", valign="top", size_hint_x=1,
+                                   size_hint_y=None, height=44, max_lines=4)
             self._subtitle.bind(size=self._sync_subtitle_size)
             self._subtitle.bind(texture_size=self._reflow_height)
             self.add_widget(self._subtitle)
@@ -460,39 +386,26 @@ class SectionCard(BoxLayout):
 
 
 def empty_state_label(text: str) -> Label:
-    lbl = Label(
-        text=text,
-        color=COL_MUTED,
-        font_size=FS_BODY,
-        halign="left",
-        valign="top",
-        size_hint_y=None,
-        height=96,
-    )
+    lbl = Label(text=text, color=COL_MUTED, font_size=FS_BODY, halign="left", valign="top",
+                size_hint_y=None, height=96)
     lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width - 4, None)))
     return lbl
 
 
-class GoalCard(BoxLayout):
-    """Goal row as a compact card with progress bar."""
+# ── Card widgets ──────────────────────────────────────────────────────────────
 
+class GoalCard(BoxLayout):
     def __init__(self, g, *, on_edit, on_delete, **kwargs) -> None:
-        super().__init__(orientation="vertical", size_hint_y=None, height=108, padding=12, spacing=8, **kwargs)
+        super().__init__(orientation="vertical", size_hint_y=None, height=108,
+                         padding=12, spacing=8, **kwargs)
         with self.canvas.before:
             Color(*COL_SURFACE_ELEV)
             self._bg = RoundedRectangle(radius=[14, 14, 14, 14])
         self.bind(pos=self._sync_bg, size=self._sync_bg)
 
         head = BoxLayout(orientation="horizontal", size_hint_y=None, height=30, spacing=8)
-        title = Label(
-            text=g.name,
-            color=COL_TEXT,
-            bold=True,
-            font_size=FS_BODY,
-            halign="left",
-            valign="middle",
-            size_hint_x=1,
-        )
+        title = Label(text=g.name, color=COL_TEXT, bold=True, font_size=FS_BODY,
+                      halign="left", valign="middle", size_hint_x=1)
         title.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         head.add_widget(title)
         edit_btn = ui_button("Изменить", width=100)
@@ -506,13 +419,8 @@ class GoalCard(BoxLayout):
         pct = round(g.progress_ratio * 100)
         sub = Label(
             text=f"{format_rub(g.current_cents)} из {format_rub(g.target_cents)}  ·  {pct}%",
-            color=COL_MUTED,
-            font_size=FS_SMALL,
-            halign="left",
-            valign="middle",
-            size_hint_y=None,
-            height=22,
-        )
+            color=COL_MUTED, font_size=FS_SMALL, halign="left", valign="middle",
+            size_hint_y=None, height=22)
         sub.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         self.add_widget(sub)
         self.add_widget(BarTrack(min(1.0, g.progress_ratio), COL_ACCENT))
@@ -523,10 +431,9 @@ class GoalCard(BoxLayout):
 
 
 class ReminderRowCard(BoxLayout):
-    """One reminder as a card with status accent and actions."""
-
     def __init__(self, r, *, now: datetime, on_done, on_delete, **kwargs) -> None:
-        super().__init__(orientation="horizontal", size_hint_y=None, height=86, padding=10, spacing=10, **kwargs)
+        super().__init__(orientation="horizontal", size_hint_y=None, height=86,
+                         padding=10, spacing=10, **kwargs)
         overdue = r.due_at < now
         stripe_rgb = COL_DANGER if overdue else COL_ACCENT
         stripe = BoxLayout(size_hint_x=None, width=4, size_hint_y=1)
@@ -549,37 +456,16 @@ class ReminderRowCard(BoxLayout):
         mid = BoxLayout(orientation="vertical", spacing=4, size_hint_x=1)
         when = r.due_at.astimezone(UTC).strftime("%d.%m.%Y · %H:%M")
         status = "Просрочено" if overdue else "По плану"
-        l1 = Label(
-            text=f"{when}  ·  {status}",
-            color=COL_MUTED,
-            font_size=FS_SMALL,
-            halign="left",
-            valign="middle",
-            size_hint_y=None,
-            height=18,
-        )
+        l1 = Label(text=f"{when}  ·  {status}", color=COL_MUTED, font_size=FS_SMALL,
+                   halign="left", valign="middle", size_hint_y=None, height=18)
         l1.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
-        l2 = Label(
-            text=r.name,
-            color=COL_TEXT,
-            font_size=FS_BODY,
-            bold=True,
-            halign="left",
-            valign="middle",
-            size_hint_y=None,
-            height=24,
-        )
+        l2 = Label(text=r.name, color=COL_TEXT, font_size=FS_BODY, bold=True,
+                   halign="left", valign="middle", size_hint_y=None, height=24)
         l2.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         amt = format_rub(r.amount_cents) if r.amount_cents is not None else "—"
-        l3 = Label(
-            text=f"Сумма: {amt}  ·  {recurrence_display(r.recurrence)}",
-            color=COL_MUTED,
-            font_size=FS_SMALL,
-            halign="left",
-            valign="middle",
-            size_hint_y=None,
-            height=18,
-        )
+        l3 = Label(text=f"Сумма: {amt}  ·  {recurrence_display(r.recurrence)}",
+                   color=COL_MUTED, font_size=FS_SMALL, halign="left", valign="middle",
+                   size_hint_y=None, height=18)
         l3.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         mid.add_widget(l1)
         mid.add_widget(l2)
@@ -603,33 +489,14 @@ class ReminderRowCard(BoxLayout):
 
 
 class IconButton(ButtonBehavior, BoxLayout):
-    """Rounded pill / FAB: PNG icon (tinted for contrast) or vector ``glyph`` label."""
-
-    def __init__(
-        self,
-        *,
-        icon: str | None = None,
-        glyph: str | None = None,
-        text: str = "",
-        width: int = 110,
-        height: int = 44,
-        accent: bool = False,
-        circle: bool = False,
-        icon_size: int = 28,
-        **kwargs,
-    ) -> None:
+    def __init__(self, *, icon: str | None = None, glyph: str | None = None,
+                 text: str = "", width: int = 110, height: int = 44,
+                 accent: bool = False, circle: bool = False, icon_size: int = 28,
+                 **kwargs) -> None:
         if (icon is None) == (glyph is None):
             raise ValueError("IconButton: set exactly one of icon= or glyph=")
-        super().__init__(
-            orientation="horizontal",
-            spacing=6,
-            padding=(8, 6, 10, 6),
-            size_hint_x=None,
-            size_hint_y=None,
-            width=width,
-            height=height,
-            **kwargs,
-        )
+        super().__init__(orientation="horizontal", spacing=6, padding=(8, 6, 10, 6),
+                         size_hint_x=None, size_hint_y=None, width=width, height=height, **kwargs)
         self._accent = accent
         self._base_color = COL_ACCENT if accent else COL_TOOLBAR_BTN
         self._circle = circle
@@ -640,48 +507,25 @@ class IconButton(ButtonBehavior, BoxLayout):
         self.bind(pos=self._update_bg, size=self._update_bg)
         self.bind(state=self._on_state_change)
 
-        well = BoxLayout(
-            orientation="vertical",
-            size_hint_x=None,
-            width=max(32, icon_size + 6),
-            size_hint_y=1,
-            padding=(0, 2, 2, 2),
-        )
+        well = BoxLayout(orientation="vertical", size_hint_x=None,
+                         width=max(32, icon_size + 6), size_hint_y=1, padding=(0, 2, 2, 2))
         if glyph is not None:
-            self._mark = Label(
-                text=glyph,
-                font_size=icon_size + (10 if circle else 4),
-                bold=True,
-                color=(1, 1, 1, 1) if accent else ICON_TINT_DEFAULT,
-                halign="center",
-                valign="middle",
-            )
+            self._mark = Label(text=glyph, font_size=icon_size + (10 if circle else 4), bold=True,
+                               color=(1, 1, 1, 1) if accent else ICON_TINT_DEFAULT,
+                               halign="center", valign="middle")
             self._mark.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, inst.height)))
         else:
             if icon is None:
                 raise ValueError("IconButton: icon path is required when glyph is not set")
-            self._mark = Image(
-                source=icon,
-                color=(1, 1, 1, 1) if accent else ICON_TINT_DEFAULT,
-                size_hint=(1, 1),
-                allow_stretch=True,
-                keep_ratio=True,
-                mipmap=True,
-            )
+            self._mark = Image(source=icon, color=(1, 1, 1, 1) if accent else ICON_TINT_DEFAULT,
+                               size_hint=(1, 1), allow_stretch=True, keep_ratio=True, mipmap=True)
         well.add_widget(self._mark)
         self.add_widget(well)
 
         if text:
             line_h = FS_BODY * 1.38
-            self._label = Label(
-                text=text,
-                color=COL_TEXT,
-                halign="left",
-                valign="middle",
-                font_size=FS_BODY,
-                size_hint_x=1,
-                max_lines=1,
-            )
+            self._label = Label(text=text, color=COL_TEXT, halign="left", valign="middle",
+                                font_size=FS_BODY, size_hint_x=1, max_lines=1)
             self._label.bind(
                 size=lambda inst, _v: setattr(inst, "text_size", (max(1, inst.width - 2), line_h))
             )
@@ -715,34 +559,19 @@ class IconButton(ButtonBehavior, BoxLayout):
                 self._mark.color = (1, 1, 1, 1) if self._accent else ICON_TINT_DEFAULT
 
 
-class SummaryCard(BoxLayout):
-    """Three-column month totals (income / expense / balance)."""
+# ── SummaryCard (used inside reports popup) ───────────────────────────────────
 
+class SummaryCard(BoxLayout):
     def __init__(self, **kwargs) -> None:
-        super().__init__(
-            orientation="vertical",
-            size_hint_y=None,
-            height=118,
-            spacing=8,
-            padding=(14, 12),
-            **kwargs,
-        )
+        super().__init__(orientation="vertical", size_hint_y=None, height=118,
+                         spacing=8, padding=(14, 12), **kwargs)
         with self.canvas.before:
             Color(*COL_SURFACE_ELEV)
             self._bg = RoundedRectangle(radius=[18, 18, 18, 18])
         self.bind(pos=self._sync_bg, size=self._sync_bg)
 
-        self._title = Label(
-            text="",
-            color=COL_MUTED,
-            font_size=FS_SMALL,
-            halign="left",
-            valign="middle",
-            size_hint_x=1,
-            size_hint_y=None,
-            height=34,
-            max_lines=2,
-        )
+        self._title = Label(text="", color=COL_MUTED, font_size=FS_SMALL, halign="left",
+                            valign="middle", size_hint_x=1, size_hint_y=None, height=34, max_lines=2)
         self._title.bind(size=self._sync_title_size)
         self._title.bind(texture_size=self._reflow_summary_height)
         self.add_widget(self._title)
@@ -767,21 +596,9 @@ class SummaryCard(BoxLayout):
     @staticmethod
     def _money_column(title: str, value_color: tuple[float, float, float, float]) -> dict:
         box = BoxLayout(orientation="vertical", spacing=2)
-        t = Label(
-            text=title,
-            color=COL_MUTED,
-            font_size=FS_SMALL,
-            halign="left",
-            bold=True,
-        )
+        t = Label(text=title, color=COL_MUTED, font_size=FS_SMALL, halign="left", bold=True)
         t.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
-        v = Label(
-            text="—",
-            color=value_color,
-            font_size=FS_AMOUNT,
-            halign="left",
-            bold=True,
-        )
+        v = Label(text="—", color=value_color, font_size=FS_AMOUNT, halign="left", bold=True)
         v.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         box.add_widget(t)
         box.add_widget(v)
@@ -803,35 +620,195 @@ class SummaryCard(BoxLayout):
         self._lbl_bal["value"].color = bal_color
 
 
-class TransactionCard(BoxLayout):
-    """One operation as a raised card with income/expense accent stripe."""
+# ── New sidebar widgets ───────────────────────────────────────────────────────
 
-    def __init__(
-        self,
-        *,
-        income: bool,
-        when: str,
-        kind_ui: str,
-        note: str,
-        category: str | None,
-        amount_cents: int,
-        tx_id: int | None = None,
-        on_delete=None,
-        **kwargs,
-    ) -> None:
-        super().__init__(
-            orientation="horizontal",
-            size_hint_y=None,
-            height=96 if on_delete else 86,
-            spacing=12,
-            padding=(10, 10, 14, 10),
-            **kwargs,
+class StatCard(BoxLayout):
+    """Individual metric card: icon in circle + title + amount + operation count."""
+
+    def __init__(self, *, title: str, glyph: str, amount_color: tuple, **kwargs) -> None:
+        super().__init__(orientation="vertical", size_hint_y=None, height=120,
+                         padding=(14, 12, 14, 10), spacing=4, **kwargs)
+        with self.canvas.before:
+            Color(*COL_SURFACE_ELEV)
+            self._bg = RoundedRectangle(radius=[16] * 4)
+        self.bind(pos=self._sync_bg, size=self._sync_bg)
+
+        # Icon pill
+        r, g, b, _a = amount_color
+        icon_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=36)
+        icon_pill = BoxLayout(size_hint_x=None, width=36, size_hint_y=None, height=36)
+        with icon_pill.canvas.before:
+            Color(r * 0.18, g * 0.18, b * 0.18, 1)
+            _pill = RoundedRectangle(radius=[10] * 4)
+        icon_pill.bind(
+            pos=lambda inst, _v: setattr(_pill, "pos", inst.pos),
+            size=lambda inst, _v: setattr(_pill, "size", inst.size),
         )
+        icon_lbl = Label(text=glyph, font_size=18, color=amount_color,
+                         halign="center", valign="middle")
+        icon_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, inst.height)))
+        icon_pill.add_widget(icon_lbl)
+        icon_row.add_widget(icon_pill)
+        icon_row.add_widget(Widget())
+        self.add_widget(icon_row)
+
+        # Title
+        t_lbl = Label(text=title, color=COL_MUTED, font_size=FS_SMALL,
+                      halign="left", valign="middle", size_hint_y=None, height=18)
+        t_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
+        self.add_widget(t_lbl)
+
+        # Amount
+        self._amount_lbl = Label(text="0.00", color=amount_color, font_size=19, bold=True,
+                                 halign="left", valign="middle", size_hint_y=None, height=26)
+        self._amount_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
+        self.add_widget(self._amount_lbl)
+
+        # Count
+        self._count_lbl = Label(text="0 операций", color=COL_MUTED, font_size=FS_SMALL,
+                                halign="left", valign="middle", size_hint_y=None, height=18)
+        self._count_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
+        self.add_widget(self._count_lbl)
+
+    def _sync_bg(self, *_args) -> None:
+        self._bg.pos = self.pos
+        self._bg.size = self.size
+
+    def update(self, *, amount_cents: int, count: int,
+               color_override: tuple | None = None) -> None:
+        self._amount_lbl.text = format_rub(amount_cents)
+        if color_override is not None:
+            self._amount_lbl.color = color_override
+        self._count_lbl.text = f"{count} {_ops_word(count)}"
+
+
+class NavItem(ButtonBehavior, BoxLayout):
+    """Single sidebar navigation item with accent stripe."""
+
+    def __init__(self, *, glyph: str, text: str, active: bool = False, **kwargs) -> None:
+        super().__init__(orientation="horizontal", size_hint_y=None, height=46,
+                         padding=(0, 0, 8, 0), spacing=8, **kwargs)
+
+        # Accent stripe
+        self._stripe = Widget(size_hint_x=None, width=3)
+        with self._stripe.canvas:
+            self._stripe_clr = Color(*(COL_ACCENT if active else (0, 0, 0, 0)))
+            self._stripe_rect = Rectangle()
+        self._stripe.bind(pos=self._sync_stripe, size=self._sync_stripe)
+        self.add_widget(self._stripe)
+
+        # Row background
+        with self.canvas.before:
+            self._bg_clr = Color(*((0.14, 0.17, 0.22, 1) if active else (0, 0, 0, 0)))
+            self._bg_rect = Rectangle(pos=self.pos, size=self.size)
+        self.bind(pos=self._sync_bg, size=self._sync_bg)
+
+        # Glyph
+        self._icon = Label(text=glyph, font_size=15,
+                           color=COL_ACCENT if active else COL_MUTED,
+                           size_hint_x=None, width=22, halign="center", valign="middle")
+        self._icon.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, inst.height)))
+        self.add_widget(self._icon)
+
+        # Label
+        self._lbl = Label(text=text, font_size=FS_BODY,
+                          color=COL_TEXT if active else COL_MUTED,
+                          halign="left", valign="middle", size_hint_x=1)
+        self._lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, inst.height)))
+        self.add_widget(self._lbl)
+
+    def _sync_bg(self, *_) -> None:
+        self._bg_rect.pos = self.pos
+        self._bg_rect.size = self.size
+
+    def _sync_stripe(self, *_) -> None:
+        self._stripe_rect.pos = self._stripe.pos
+        self._stripe_rect.size = self._stripe.size
+
+    def set_active(self, active: bool) -> None:
+        if active:
+            self._bg_clr.rgba = (0.14, 0.17, 0.22, 1)
+            self._stripe_clr.rgba = COL_ACCENT
+            self._icon.color = COL_ACCENT
+            self._lbl.color = COL_TEXT
+        else:
+            self._bg_clr.rgba = (0, 0, 0, 0)
+            self._stripe_clr.rgba = (0, 0, 0, 0)
+            self._icon.color = COL_MUTED
+            self._lbl.color = COL_MUTED
+
+
+class Sidebar(BoxLayout):
+    """Left navigation panel."""
+
+    def __init__(self, *, on_overview, on_operations, on_reports,
+                 on_goals, on_reminders, on_exit, **kwargs) -> None:
+        super().__init__(orientation="vertical", size_hint_x=None, width=158,
+                         padding=(0, 10, 0, 10), spacing=0, **kwargs)
+        with self.canvas.before:
+            Color(*COL_SIDEBAR)
+            self._bg = Rectangle(pos=self.pos, size=self.size)
+        self.bind(pos=lambda *_: setattr(self._bg, "pos", self.pos),
+                  size=lambda *_: setattr(self._bg, "size", self.size))
+
+        # Logo
+        logo = Label(text="[b]Финансы[/b]", markup=True, color=COL_TEXT, font_size=16,
+                     size_hint_y=None, height=52, halign="left", valign="middle")
+        logo.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width - 16, inst.height)))
+        self.add_widget(logo)
+        self._add_sep()
+
+        self._nav_items: list[NavItem] = []
+
+        def _nav(glyph: str, text: str, cb, active: bool = False) -> NavItem:
+            item = NavItem(glyph=glyph, text=text, active=active)
+            item.bind(on_release=lambda *_: (self._activate(item), cb()))
+            self._nav_items.append(item)
+            self.add_widget(item)
+            return item
+
+        _nav("⌂", "Обзор", on_overview, active=True)
+        _nav("⇄", "Операции", on_operations)
+        _nav("≡", "Отчёты", on_reports)
+        _nav("◎", "Цели", on_goals)
+        _nav("◷", "Напом.", on_reminders)
+
+        self.add_widget(Widget(size_hint_y=1))
+        self._add_sep()
+
+        exit_item = NavItem(glyph="←", text="Выйти", active=False)
+        exit_item.bind(on_release=lambda *_: on_exit())
+        self.add_widget(exit_item)
+
+    def _add_sep(self) -> None:
+        sep = Widget(size_hint_y=None, height=1)
+        with sep.canvas:
+            Color(*COL_BORDER)
+            _r = Rectangle()
+        sep.bind(pos=lambda inst, _v: setattr(_r, "pos", inst.pos),
+                 size=lambda inst, _v: setattr(_r, "size", inst.size))
+        self.add_widget(sep)
+
+    def _activate(self, active_item: NavItem) -> None:
+        for item in self._nav_items:
+            item.set_active(item is active_item)
+
+
+# ── Transaction card ──────────────────────────────────────────────────────────
+
+class TransactionCard(BoxLayout):
+    def __init__(self, *, income: bool, when: str, kind_ui: str, note: str,
+                 category: str | None, amount_cents: int, tx_id: int | None = None,
+                 on_delete=None, **kwargs) -> None:
+        super().__init__(orientation="horizontal", size_hint_y=None,
+                         height=96 if on_delete else 86, spacing=12,
+                         padding=(10, 10, 14, 10), **kwargs)
         stripe_rgb = COL_INCOME if income else COL_EXPENSE
         stripe = BoxLayout(size_hint_x=None, width=4, size_hint_y=1)
         with stripe.canvas.before:
             Color(*stripe_rgb)
             sr = Rectangle()
+
         def _stripe_rect(*_a) -> None:
             sr.pos = stripe.pos
             sr.size = stripe.size
@@ -845,65 +822,29 @@ class TransactionCard(BoxLayout):
         self.bind(pos=self._sync_bg, size=self._sync_bg)
 
         mid = BoxLayout(orientation="vertical", spacing=2, size_hint_x=1)
-        top = Label(
-            text=when,
-            color=COL_MUTED,
-            font_size=FS_SMALL,
-            halign="left",
-            valign="middle",
-        )
+        top = Label(text=when, color=COL_MUTED, font_size=FS_SMALL, halign="left", valign="middle")
         top.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         title = note or "Без описания"
-        main = Label(
-            text=title,
-            color=COL_TEXT,
-            font_size=FS_BODY,
-            halign="left",
-            valign="middle",
-            bold=True,
-        )
+        main = Label(text=title, color=COL_TEXT, font_size=FS_BODY, halign="left",
+                     valign="middle", bold=True)
         main.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         cat_line = f"{kind_ui} · {category}" if category else kind_ui
-        sub = Label(
-            text=cat_line,
-            color=COL_MUTED,
-            font_size=FS_SMALL,
-            halign="left",
-            valign="middle",
-        )
+        sub = Label(text=cat_line, color=COL_MUTED, font_size=FS_SMALL, halign="left", valign="middle")
         sub.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         mid.add_widget(top)
         mid.add_widget(main)
         mid.add_widget(sub)
 
         sign = "+" if income else "−"
-        right = BoxLayout(
-            orientation="vertical",
-            size_hint_x=None,
-            width=120,
-            spacing=4,
-        )
-        amt = Label(
-            text=f"{sign}{format_rub(amount_cents)}",
-            color=stripe_rgb,
-            font_size=FS_AMOUNT,
-            bold=True,
-            halign="right",
-            valign="middle",
-            size_hint_y=1,
-        )
+        right = BoxLayout(orientation="vertical", size_hint_x=None, width=120, spacing=4)
+        amt = Label(text=f"{sign}{format_rub(amount_cents)}", color=stripe_rgb,
+                    font_size=FS_AMOUNT, bold=True, halign="right", valign="middle", size_hint_y=1)
         amt.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         right.add_widget(amt)
         if on_delete is not None and tx_id is not None:
-            del_btn = Button(
-                text="Удалить",
-                size_hint_y=None,
-                height=24,
-                background_normal="",
-                background_color=(*COL_DANGER[:3], 0.75),
-                color=COL_TEXT,
-                font_size=FS_SMALL,
-            )
+            del_btn = Button(text="Удалить", size_hint_y=None, height=24,
+                             background_normal="", background_color=(*COL_DANGER[:3], 0.75),
+                             color=COL_TEXT, font_size=FS_SMALL)
             del_btn.bind(on_release=lambda *_a, tid=tx_id: on_delete(tid))
             right.add_widget(del_btn)
 
@@ -917,19 +858,20 @@ class TransactionCard(BoxLayout):
         self._bg.size = (self.width - 2 * m, self.height - 6)
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
 def month_bounds_utc(dt: datetime) -> tuple[datetime, datetime]:
     start = datetime(dt.year, dt.month, 1, tzinfo=UTC)
     if dt.month == 12:
         next_month = datetime(dt.year + 1, 1, 1, tzinfo=UTC)
     else:
         next_month = datetime(dt.year, dt.month + 1, 1, tzinfo=UTC)
-    inclusive_end = next_month - timedelta(seconds=1)
-    return start, inclusive_end
+    return start, next_month - timedelta(seconds=1)
 
 
 @dataclass
 class AppState:
-    selected_type: str  # "all" | "income" | "expense"
+    selected_type: str
     current_month: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -941,6 +883,8 @@ KIND_KIND_TO_UI = {v: k for k, v in KIND_UI_TO_KIND.items()}
 def kind_to_ui(kind: str) -> str:
     return KIND_KIND_TO_UI.get(kind, kind)
 
+
+# ── Forms ─────────────────────────────────────────────────────────────────────
 
 class AddTransactionForm(BoxLayout):
     def __init__(self, on_submit, categories: list[tuple[int, str]], **kwargs):
@@ -983,15 +927,12 @@ class AddTransactionForm(BoxLayout):
         )
 
 
+# ── Root view ─────────────────────────────────────────────────────────────────
+
 class RootView(BoxLayout):
-    def __init__(
-        self,
-        conn,
-        repo: TransactionRepository,
-        cat_repo: CategoryRepository,
-        **kwargs,
-    ):
-        super().__init__(orientation="vertical", spacing=14, padding=(16, 12, 16, 14), **kwargs)
+    def __init__(self, conn, repo: TransactionRepository,
+                 cat_repo: CategoryRepository, **kwargs):
+        super().__init__(orientation="horizontal", spacing=0, padding=0, **kwargs)
         self.conn = conn
         self.repo = repo
         self.cat_repo = cat_repo
@@ -999,97 +940,110 @@ class RootView(BoxLayout):
         self.reminder_repo = ReminderRepository(conn)
         self.state = AppState(selected_type="all")
 
-        title_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=44, spacing=8)
-        prev_btn = Button(
-            text="‹",
-            size_hint_x=None,
-            width=36,
-            background_normal="",
-            background_color=COL_SURFACE_ELEV,
-            color=COL_TEXT,
-            font_size=22,
+        # Sidebar
+        self.sidebar = Sidebar(
+            on_overview=self._show_overview,
+            on_operations=self._show_overview,
+            on_reports=self.open_reports_popup,
+            on_goals=self.open_goals_popup,
+            on_reminders=self.open_reminders_popup,
+            on_exit=self._exit_app,
         )
+        self.add_widget(self.sidebar)
+
+        # Vertical divider
+        _div = Widget(size_hint_x=None, width=1)
+        with _div.canvas:
+            Color(*COL_BORDER)
+            _dr = Rectangle()
+        _div.bind(pos=lambda w, _: setattr(_dr, "pos", w.pos),
+                  size=lambda w, _: setattr(_dr, "size", w.size))
+        self.add_widget(_div)
+
+        # Content area
+        self._content = BoxLayout(orientation="vertical", spacing=10, padding=(16, 12, 16, 12))
+        self.add_widget(self._content)
+        self._build_content()
+        Clock.schedule_once(lambda *_: self.refresh(), 0)
+
+    def _exit_app(self) -> None:
+        App.get_running_app().stop()
+
+    def _show_overview(self) -> None:
+        self.refresh()
+
+    def _build_content(self) -> None:
+        c = self._content
+
+        # Top bar
+        top = BoxLayout(orientation="horizontal", size_hint_y=None, height=52, spacing=8)
+        prev_btn = Button(text="‹", size_hint_x=None, width=32, background_normal="",
+                          background_color=COL_SURFACE_ELEV, color=COL_TEXT, font_size=22)
         prev_btn.bind(on_release=lambda *_: self._go_prev_month())
-        title_row.add_widget(prev_btn)
-        self.month_label = Label(
-            text=month_title_ru(datetime.now(UTC)),
-            font_size=FS_TITLE,
-            bold=True,
-            color=COL_TEXT,
-            halign="center",
-            valign="middle",
-            size_hint_x=1,
-        )
+        top.add_widget(prev_btn)
+
+        self.month_label = Label(text=month_title_ru(datetime.now(UTC)), font_size=FS_TITLE,
+                                 bold=True, color=COL_TEXT, halign="center", valign="middle",
+                                 size_hint_x=1)
         self.month_label.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
-        title_row.add_widget(self.month_label)
-        next_btn = Button(
-            text="›",
-            size_hint_x=None,
-            width=36,
-            background_normal="",
-            background_color=COL_SURFACE_ELEV,
-            color=COL_TEXT,
-            font_size=22,
-        )
+        top.add_widget(self.month_label)
+
+        next_btn = Button(text="›", size_hint_x=None, width=32, background_normal="",
+                          background_color=COL_SURFACE_ELEV, color=COL_TEXT, font_size=22)
         next_btn.bind(on_release=lambda *_: self._go_next_month())
-        title_row.add_widget(next_btn)
+        top.add_widget(next_btn)
 
-        self.type_filter = ui_spinner(
-            text="Все",
-            values=["Все", "Расходы", "Доходы"],
-            size_hint_x=None,
-            width=152,
-        )
-        self.type_filter.bind(text=lambda *_: self.refresh())
-        title_row.add_widget(self.type_filter)
-        self.add_widget(title_row)
+        accounts_btn = Button(text="Все счета  ▾", size_hint_x=None, width=148,
+                              background_normal="", background_color=COL_SURFACE_ELEV,
+                              color=COL_TEXT, font_size=FS_BODY)
+        top.add_widget(accounts_btn)
 
-        actions = BoxLayout(orientation="horizontal", size_hint_y=None, height=50, spacing=10)
-        self.period_label = ui_label("Период: текущий месяц (UTC)", height=50, muted=True)
+        add_fab = IconButton(glyph="+", width=52, height=52, accent=True, circle=True, icon_size=28)
+        add_fab.bind(on_release=lambda *_: self.open_add_popup())
+        top.add_widget(add_fab)
+        c.add_widget(top)
+
+        # Filter row
+        filter_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=28, spacing=10)
+        self.period_label = ui_label("Период: текущий месяц (UTC)", height=28, muted=True)
         self.period_label.size_hint_x = 1
-        actions.add_widget(self.period_label)
+        filter_row.add_widget(self.period_label)
+        self.type_filter = ui_spinner(text="Все", values=["Все", "Расходы", "Доходы"],
+                                      size_hint_x=None, width=130)
+        self.type_filter.bind(text=lambda *_: self.refresh())
+        filter_row.add_widget(self.type_filter)
+        c.add_widget(filter_row)
 
-        reports_btn = IconButton(icon=ICON_REPORTS, text="Отчёты", width=142, height=44)
-        reports_btn.bind(on_release=lambda *_: self.open_reports_popup())
-        actions.add_widget(reports_btn)
+        # Summary label with info icon
+        sum_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=24)
+        sum_lbl = Label(text="Сводка за месяц (с учётом фильтра)", color=COL_MUTED,
+                        font_size=FS_SMALL, halign="left", valign="middle", size_hint_x=1)
+        sum_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
+        sum_row.add_widget(sum_lbl)
+        info_lbl = Label(text="ⓘ", color=COL_MUTED, font_size=FS_BODY,
+                         size_hint_x=None, width=24, halign="center", valign="middle")
+        info_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, inst.height)))
+        sum_row.add_widget(info_lbl)
+        c.add_widget(sum_row)
 
-        goals_btn = IconButton(icon=ICON_GOALS, text="Цели", width=108, height=44)
-        goals_btn.bind(on_release=lambda *_: self.open_goals_popup())
-        actions.add_widget(goals_btn)
+        # 3 stat cards
+        stats_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=120, spacing=10)
+        self._card_income = StatCard(title="Доходы", glyph="↓", amount_color=COL_INCOME)
+        self._card_expense = StatCard(title="Расходы", glyph="↑", amount_color=COL_EXPENSE)
+        self._card_balance = StatCard(title="Баланс", glyph="◉", amount_color=COL_TEXT)
+        stats_row.add_widget(self._card_income)
+        stats_row.add_widget(self._card_expense)
+        stats_row.add_widget(self._card_balance)
+        c.add_widget(stats_row)
 
-        reminders_btn = IconButton(icon=ICON_REMINDERS, text="Напом.", width=132, height=44)
-        reminders_btn.bind(on_release=lambda *_: self.open_reminders_popup())
-        actions.add_widget(reminders_btn)
-
-        add_btn = IconButton(
-            glyph="+",
-            width=58,
-            height=58,
-            accent=True,
-            circle=True,
-            icon_size=30,
-        )
-        add_btn.bind(on_release=lambda *_: self.open_add_popup())
-        actions.add_widget(add_btn)
-        self.add_widget(actions)
-
-        self.summary = SummaryCard()
-        self.summary.set_header("Сводка за месяц (с учётом фильтра)")
-        self.summary.set_values(income_cents=0, expense_cents=0, balance_cents=0)
-        self.add_widget(self.summary)
-
+        # Transaction list
         self.list_box = BoxLayout(orientation="vertical", size_hint_y=None, spacing=10)
         self.list_box.bind(minimum_height=self.list_box.setter("height"))
-        scroll = ScrollView(
-            bar_width=5,
-            bar_color=(*COL_BORDER[:3], 0.45),
-            bar_inactive_color=(*COL_BORDER[:3], 0.15),
-            scroll_type=["bars", "content"],
-        )
+        scroll = ScrollView(bar_width=5, bar_color=(*COL_BORDER[:3], 0.45),
+                            bar_inactive_color=(*COL_BORDER[:3], 0.15),
+                            scroll_type=["bars", "content"])
         scroll.add_widget(self.list_box)
-        self.add_widget(scroll)
-
-        Clock.schedule_once(lambda *_: self.refresh(), 0)
+        c.add_widget(scroll)
 
     def _go_prev_month(self) -> None:
         dt = self.state.current_month
@@ -1110,7 +1064,6 @@ class RootView(BoxLayout):
     def _load_transactions_for_current_month(self) -> list:
         start, end = month_bounds_utc(self.state.current_month)
         tx = self.repo.list_between(start=start, end=end)
-
         kind_ui = self.type_filter.text
         kind = FILTER_UI_TO_KIND.get(kind_ui, "all")
         if kind != "all":
@@ -1122,25 +1075,22 @@ class RootView(BoxLayout):
         tx = self._load_transactions_for_current_month()
         start, end = month_bounds_utc(self.state.current_month)
         totals = totals_for_period([t.transaction for t in tx], start=start, end=end)
-        self.summary.set_values(
-            income_cents=totals.income_cents,
-            expense_cents=totals.expense_cents,
-            balance_cents=totals.balance_cents,
+
+        income_count = sum(1 for t in tx if t.transaction.type == TransactionType.INCOME)
+        expense_count = sum(1 for t in tx if t.transaction.type == TransactionType.EXPENSE)
+
+        self._card_income.update(amount_cents=totals.income_cents, count=income_count)
+        self._card_expense.update(amount_cents=totals.expense_cents, count=expense_count)
+        bal_color = COL_INCOME if totals.balance_cents >= 0 else COL_EXPENSE
+        self._card_balance.update(
+            amount_cents=totals.balance_cents,
+            count=len(tx),
+            color_override=bal_color,
         )
 
         self.list_box.clear_widgets()
         if not tx:
-            empty = BoxLayout(orientation="vertical", size_hint_y=None, height=120, padding=(8, 24))
-            msg = Label(
-                text="Пока нет операций за этот месяц.\nНажмите «+», чтобы добавить доход или расход.",
-                color=COL_MUTED,
-                font_size=FS_BODY,
-                halign="center",
-                valign="middle",
-            )
-            msg.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
-            empty.add_widget(msg)
-            self.list_box.add_widget(empty)
+            self._render_empty_state()
             return
 
         cats = {c.id: c.name for c in self.cat_repo.list_all()}
@@ -1167,6 +1117,43 @@ class RootView(BoxLayout):
                     on_delete=delete_transaction,
                 )
             )
+
+    def _render_empty_state(self) -> None:
+        empty = BoxLayout(orientation="vertical", size_hint_y=None, spacing=14,
+                          padding=(0, 28, 0, 0))
+
+        icon_lbl = Label(text="◎", font_size=76, color=(*COL_BORDER[:3], 0.55),
+                         size_hint_y=None, height=100, halign="center", valign="middle")
+        icon_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, inst.height)))
+        empty.add_widget(icon_lbl)
+
+        title_lbl = Label(text="Пока нет операций за этот месяц", color=COL_TEXT,
+                          font_size=18, bold=True, halign="center", valign="middle",
+                          size_hint_y=None, height=28)
+        title_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
+        empty.add_widget(title_lbl)
+
+        sub_lbl = Label(text="Нажмите «+», чтобы добавить доход или расход.",
+                        color=COL_MUTED, font_size=FS_BODY, halign="center", valign="middle",
+                        size_hint_y=None, height=22)
+        sub_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
+        empty.add_widget(sub_lbl)
+
+        cta_wrap = BoxLayout(size_hint_y=None, height=50)
+        cta_wrap.add_widget(Widget())
+        cta_btn = Button(text="+ Добавить операцию", size_hint_x=None, width=230,
+                         size_hint_y=None, height=46, background_normal="",
+                         background_color=COL_ACCENT, color=(0.06, 0.07, 0.09, 1),
+                         font_size=FS_BODY, bold=True)
+        cta_btn.bind(on_release=lambda *_: self.open_add_popup())
+        cta_wrap.add_widget(cta_btn)
+        cta_wrap.add_widget(Widget())
+        empty.add_widget(cta_wrap)
+
+        empty.height = 28 + 100 + 14 + 28 + 14 + 22 + 14 + 50
+        self.list_box.add_widget(empty)
+
+    # ── Popups ────────────────────────────────────────────────────────────────
 
     def open_add_popup(self) -> None:
         cats = self.cat_repo.list_all()
@@ -1223,13 +1210,10 @@ class RootView(BoxLayout):
         by_day = expense_by_day(tx, start=start, end=end)
 
         shell = ModalSheet(size_hint=(1, 1))
-        scroll = ScrollView(
-            size_hint=(1, 1),
-            bar_width=5,
-            bar_color=(*COL_BORDER[:3], 0.45),
-            bar_inactive_color=(*COL_BORDER[:3], 0.15),
-            scroll_type=["bars", "content"],
-        )
+        scroll = ScrollView(size_hint=(1, 1), bar_width=5,
+                            bar_color=(*COL_BORDER[:3], 0.45),
+                            bar_inactive_color=(*COL_BORDER[:3], 0.15),
+                            scroll_type=["bars", "content"])
         inner = BoxLayout(orientation="vertical", spacing=16, size_hint_y=None, padding=(0, 4))
         inner.bind(minimum_height=inner.setter("height"))
 
@@ -1237,17 +1221,13 @@ class RootView(BoxLayout):
         summary.set_header(
             f"{start.date().strftime('%d.%m.%Y')} — {end.date().strftime('%d.%m.%Y')} · UTC"
         )
-        summary.set_values(
-            income_cents=totals.income_cents,
-            expense_cents=totals.expense_cents,
-            balance_cents=totals.balance_cents,
-        )
+        summary.set_values(income_cents=totals.income_cents, expense_cents=totals.expense_cents,
+                           balance_cents=totals.balance_cents)
         inner.add_widget(summary)
 
         cat_items = sorted(
             ((cats.get(cid, str(cid)), v) for cid, v in by_cat.items()),
-            key=lambda x: x[1],
-            reverse=True,
+            key=lambda x: x[1], reverse=True,
         )
         max_cat = max((v for _, v in cat_items), default=0)
         cat_section = SectionCard(
@@ -1255,12 +1235,10 @@ class RootView(BoxLayout):
             subtitle="Сравнение долей расходов. Если в месяце только доходы — блок будет пустым.",
         )
         if not cat_items or max_cat <= 0:
-            cat_section.body.add_widget(
-                empty_state_label(
-                    "За этот месяц нет расходов, поэтому разбивки по категориям пока нет. "
-                    "Добавьте хотя бы одну операцию «Расход» — здесь появятся цветные столбики."
-                )
-            )
+            cat_section.body.add_widget(empty_state_label(
+                "За этот месяц нет расходов, поэтому разбивки по категориям пока нет. "
+                "Добавьте хотя бы одну операцию «Расход» — здесь появятся цветные столбики."
+            ))
         else:
             for name, cents in cat_items:
                 if cents <= 0:
@@ -1272,30 +1250,25 @@ class RootView(BoxLayout):
 
         day_items = sorted(by_day.items(), key=lambda x: x[0])
         max_day = max((v for _, v in day_items), default=0)
-        day_section = SectionCard(
-            "Расходы по дням",
-            subtitle="Динамика по календарным дням (только расходы).",
-        )
+        day_section = SectionCard("Расходы по дням",
+                                  subtitle="Динамика по календарным дням (только расходы).")
         if not day_items or max_day <= 0:
-            day_section.body.add_widget(
-                empty_state_label(
-                    "Нет расходов по дням за выбранный месяц — график появится после расходных операций."
-                )
-            )
+            day_section.body.add_widget(empty_state_label(
+                "Нет расходов по дням за выбранный месяц — график появится после расходных операций."
+            ))
         else:
             day_bar_color = (0.52, 0.62, 0.86, 1)
             for d, cents in day_items:
                 if cents <= 0:
                     continue
-                label = d.strftime("%d.%m")
                 day_section.body.add_widget(
-                    ReportBarRow(label, cents, max_cents=max_day, bar_color=day_bar_color)
+                    ReportBarRow(d.strftime("%d.%m"), cents, max_cents=max_day,
+                                 bar_color=day_bar_color)
                 )
         inner.add_widget(day_section)
 
         scroll.add_widget(inner)
         shell.add_widget(scroll)
-
         popup = Popup(title="Отчёты за месяц", content=shell, size_hint=(0.94, 0.9))
         style_popup(popup)
         popup.open()
@@ -1303,15 +1276,8 @@ class RootView(BoxLayout):
     def open_goals_popup(self) -> None:
         shell = ModalSheet(size_hint=(1, 1))
         header = BoxLayout(orientation="horizontal", size_hint_y=None, height=48, spacing=10)
-        title = Label(
-            text="Финансовые цели",
-            color=COL_TEXT,
-            font_size=FS_TITLE - 2,
-            bold=True,
-            halign="left",
-            valign="middle",
-            size_hint_x=1,
-        )
+        title = Label(text="Финансовые цели", color=COL_TEXT, font_size=FS_TITLE - 2, bold=True,
+                      halign="left", valign="middle", size_hint_x=1)
         title.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         header.add_widget(title)
         add_btn = ui_button("Новая цель", width=132, accent=True)
@@ -1325,19 +1291,14 @@ class RootView(BoxLayout):
             list_box.clear_widgets()
             current = self.goal_repo.list_all()
             if not current:
-                list_box.add_widget(
-                    empty_state_label(
-                        "Целей пока нет. Нажмите «Новая цель», задайте сумму и следите за полосой прогресса."
-                    )
-                )
+                list_box.add_widget(empty_state_label(
+                    "Целей пока нет. Нажмите «Новая цель», задайте сумму и следите за полосой прогресса."
+                ))
                 return
             for g in current:
                 list_box.add_widget(
-                    GoalCard(
-                        g,
-                        on_edit=lambda goal: open_goal_editor(existing=goal),
-                        on_delete=delete_goal,
-                    )
+                    GoalCard(g, on_edit=lambda goal: open_goal_editor(existing=goal),
+                             on_delete=delete_goal)
                 )
 
         def delete_goal(goal_id: int) -> None:
@@ -1388,22 +1349,14 @@ class RootView(BoxLayout):
 
                     with transaction(self.conn):
                         if existing is None:
-                            self.goal_repo.create(
-                                name=name,
-                                target_cents=target_cents,
-                                current_cents=current_cents,
-                                deadline_at=deadline_dt,
-                                note=note,
-                            )
+                            self.goal_repo.create(name=name, target_cents=target_cents,
+                                                  current_cents=current_cents,
+                                                  deadline_at=deadline_dt, note=note)
                         else:
-                            self.goal_repo.update(
-                                goal_id=existing.id,
-                                name=name,
-                                target_cents=target_cents,
-                                current_cents=current_cents,
-                                deadline_at=deadline_dt,
-                                note=note,
-                            )
+                            self.goal_repo.update(goal_id=existing.id, name=name,
+                                                  target_cents=target_cents,
+                                                  current_cents=current_cents,
+                                                  deadline_at=deadline_dt, note=note)
                     editor.dismiss()
                     refresh_list()
                 except Exception as exc:
@@ -1415,24 +1368,20 @@ class RootView(BoxLayout):
 
             editor_sheet = ModalSheet(size_hint=(1, 1))
             editor_sheet.add_widget(form)
-            title = "Новая цель" if existing is None else "Редактировать цель"
-            editor = Popup(title=title, content=editor_sheet, size_hint=(0.9, 0.88))
+            editor_title = "Новая цель" if existing is None else "Редактировать цель"
+            editor = Popup(title=editor_title, content=editor_sheet, size_hint=(0.9, 0.88))
             style_popup(editor)
             editor.open()
 
         add_btn.bind(on_release=lambda *_: open_goal_editor(existing=None))
         refresh_list()
 
-        scroll = ScrollView(
-            size_hint=(1, 1),
-            bar_width=5,
-            bar_color=(*COL_BORDER[:3], 0.45),
-            bar_inactive_color=(*COL_BORDER[:3], 0.15),
-            scroll_type=["bars", "content"],
-        )
+        scroll = ScrollView(size_hint=(1, 1), bar_width=5,
+                            bar_color=(*COL_BORDER[:3], 0.45),
+                            bar_inactive_color=(*COL_BORDER[:3], 0.15),
+                            scroll_type=["bars", "content"])
         scroll.add_widget(list_box)
         shell.add_widget(scroll)
-
         popup = Popup(title="Цели", content=shell, size_hint=(0.94, 0.9))
         style_popup(popup)
         popup.open()
@@ -1440,15 +1389,8 @@ class RootView(BoxLayout):
     def open_reminders_popup(self) -> None:
         shell = ModalSheet(size_hint=(1, 1))
         header = BoxLayout(orientation="horizontal", size_hint_y=None, height=48, spacing=10)
-        title = Label(
-            text="Напоминания о платежах",
-            color=COL_TEXT,
-            font_size=FS_TITLE - 2,
-            bold=True,
-            halign="left",
-            valign="middle",
-            size_hint_x=1,
-        )
+        title = Label(text="Напоминания о платежах", color=COL_TEXT, font_size=FS_TITLE - 2,
+                      bold=True, halign="left", valign="middle", size_hint_x=1)
         title.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         header.add_widget(title)
         add_btn = ui_button("Новое", width=110, accent=True)
@@ -1462,22 +1404,15 @@ class RootView(BoxLayout):
             list_box.clear_widgets()
             items = self.reminder_repo.list_due_sorted()
             if not items:
-                list_box.add_widget(
-                    empty_state_label(
-                        "Список пуст. Добавьте дату платежа и при необходимости повтор — приложение "
-                        "подсветит просроченные записи."
-                    )
-                )
+                list_box.add_widget(empty_state_label(
+                    "Список пуст. Добавьте дату платежа и при необходимости повтор — приложение "
+                    "подсветит просроченные записи."
+                ))
                 return
             now = datetime.now(UTC)
             for r in items:
                 list_box.add_widget(
-                    ReminderRowCard(
-                        r,
-                        now=now,
-                        on_done=mark_done,
-                        on_delete=delete_reminder,
-                    )
+                    ReminderRowCard(r, now=now, on_done=mark_done, on_delete=delete_reminder)
                 )
 
         def mark_done(reminder_id: int) -> None:
@@ -1519,15 +1454,10 @@ class RootView(BoxLayout):
                     amount_text = amount_in.text.strip()
                     amount_cents = parse_money(amount_text) if amount_text else None
                     note = note_in.text.strip() or None
-
                     with transaction(self.conn):
-                        self.reminder_repo.create(
-                            name=name,
-                            due_at=due_dt,
-                            recurrence=recurrence,
-                            amount_cents=amount_cents,
-                            note=note,
-                        )
+                        self.reminder_repo.create(name=name, due_at=due_dt,
+                                                  recurrence=recurrence,
+                                                  amount_cents=amount_cents, note=note)
                     editor.dismiss()
                     refresh_list()
                 except Exception as exc:
@@ -1546,20 +1476,18 @@ class RootView(BoxLayout):
         add_btn.bind(on_release=lambda *_: open_editor())
         refresh_list()
 
-        scroll = ScrollView(
-            size_hint=(1, 1),
-            bar_width=5,
-            bar_color=(*COL_BORDER[:3], 0.45),
-            bar_inactive_color=(*COL_BORDER[:3], 0.15),
-            scroll_type=["bars", "content"],
-        )
+        scroll = ScrollView(size_hint=(1, 1), bar_width=5,
+                            bar_color=(*COL_BORDER[:3], 0.45),
+                            bar_inactive_color=(*COL_BORDER[:3], 0.15),
+                            scroll_type=["bars", "content"])
         scroll.add_widget(list_box)
         shell.add_widget(scroll)
-
         popup = Popup(title="Напоминания", content=shell, size_hint=(0.94, 0.9))
         style_popup(popup)
         popup.open()
 
+
+# ── App ───────────────────────────────────────────────────────────────────────
 
 class PersonalFinanceApp(App):
     title = "Личные финансы"
@@ -1568,15 +1496,12 @@ class PersonalFinanceApp(App):
         Window.clearcolor = COL_BG
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         _cleanup_orphaned_plaintext_dbs()
-        # Build a placeholder root; we will prompt for a password and then
-        # initialize the actual app UI once DB is decrypted.
         self._passphrase: str | None = None
         self._conn = None
         self._runtime_db_path: Path | None = None
 
-        root = BoxLayout(orientation="vertical", padding=12, spacing=8)
+        root = BoxLayout(orientation="vertical", padding=0, spacing=0)
         root.add_widget(Label(text="Загрузка…", size_hint_y=None, height=40))
-
         Clock.schedule_once(lambda *_: self._prompt_password_and_unlock(root), 0)
         return root
 
@@ -1587,20 +1512,18 @@ class PersonalFinanceApp(App):
         err = ui_error_label()
 
         if first_run:
-            content.add_widget(
-                ui_label(
-                    "Первый запуск: придумайте пароль для шифрования локальной БД.\n"
-                    "Пароль не восстанавливается — сохраните его.",
-                    height=56,
-                    muted=True,
-                )
-            )
+            content.add_widget(ui_label(
+                "Первый запуск: придумайте пароль для шифрования локальной БД.\n"
+                "Пароль не восстанавливается — сохраните его.",
+                height=56, muted=True,
+            ))
             pwd = ui_text_input("Новый пароль", password=True)
             pwd2 = ui_text_input("Повторите пароль", password=True)
             content.add_widget(pwd)
             content.add_widget(pwd2)
         else:
-            content.add_widget(ui_label("Введите пароль для шифрования локальной БД.", height=40, muted=True))
+            content.add_widget(ui_label("Введите пароль для шифрования локальной БД.",
+                                        height=40, muted=True))
             pwd = ui_text_input("Пароль для БД", password=True)
             pwd2 = None
             content.add_widget(pwd)
@@ -1641,20 +1564,12 @@ class PersonalFinanceApp(App):
                             raise ValueError("Пароли не совпадают")
                         if len(passphrase) < 4:
                             raise ValueError("Слишком короткий пароль (минимум 4 символа)")
-
-                    # Keep plaintext DB in a unique temp location.
                     runtime_db = _new_temp_plaintext_db_path()
                     self._runtime_db_path = runtime_db
-
-                    # If encrypted DB exists -> decrypt into temp plaintext path.
                     if ENCRYPTED_DB_PATH.exists():
-                        decrypt_file_to_path(
-                            encrypted_path=ENCRYPTED_DB_PATH,
-                            passphrase=passphrase,
-                            out_path=runtime_db,
-                        )
+                        decrypt_file_to_path(encrypted_path=ENCRYPTED_DB_PATH,
+                                             passphrase=passphrase, out_path=runtime_db)
                 else:
-                    # Android / reproducible build mode: use plaintext DB only.
                     passphrase = ""
                     runtime_db = PLAINTEXT_DB_PATH
                     self._runtime_db_path = runtime_db
@@ -1674,7 +1589,6 @@ class PersonalFinanceApp(App):
                 popup.dismiss()
             except InvalidPasswordError:
                 err.text = "Неверный пароль (или файл БД повреждён)."
-                # Cleanup temp plaintext on failure.
                 try:
                     if self._runtime_db_path and self._runtime_db_path != PLAINTEXT_DB_PATH:
                         self._runtime_db_path.unlink(missing_ok=True)
@@ -1701,17 +1615,12 @@ class PersonalFinanceApp(App):
                 conn.close()
             except Exception:
                 pass
-        # Best-effort: seal plaintext DB into encrypted file and remove plaintext.
         if encryption_enabled() and passphrase and runtime_db.exists():
             try:
-                encrypt_file_to_path(
-                    plaintext_path=runtime_db,
-                    passphrase=passphrase,
-                    out_path=ENCRYPTED_DB_PATH,
-                )
+                encrypt_file_to_path(plaintext_path=runtime_db, passphrase=passphrase,
+                                     out_path=ENCRYPTED_DB_PATH)
                 runtime_db.unlink(missing_ok=True)
             except Exception:
-                # Do not crash app shutdown.
                 pass
 
 
