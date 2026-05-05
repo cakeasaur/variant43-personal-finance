@@ -12,6 +12,7 @@ from pathlib import Path
 
 from kivy.app import App
 from kivy.clock import Clock
+from kivy.core.text import LabelBase
 from kivy.core.window import Window
 from kivy.graphics import Color, Rectangle
 from kivy.graphics.vertex_instructions import RoundedRectangle
@@ -64,9 +65,26 @@ PLAINTEXT_DB_PATH = DATA_DIR / "personal_finance.sqlite3"
 ENCRYPTED_DB_PATH = DATA_DIR / "personal_finance.sqlite3.enc"
 
 ASSETS_DIR = PROJECT_ROOT / "assets"
+FONT_ICONS = str(ASSETS_DIR / "fonts" / "MaterialIcons-Regular.ttf")
 ICON_REPORTS = str(ASSETS_DIR / "icon_reports.png")
 ICON_GOALS = str(ASSETS_DIR / "icon_goals.png")
 ICON_REMINDERS = str(ASSETS_DIR / "icon_reminders.png")
+
+# Material Icons codepoints (Unicode private-use area; rendered via MaterialIcons font)
+IC_HOME     = ""  # U+E88A  home
+IC_SWAP     = ""  # U+E8D4  swap_horiz       -> Operations
+IC_CHART    = ""  # U+E26B  bar_chart        -> Reports
+IC_FLAG     = ""  # U+E153  flag             -> Goals
+IC_BELL     = ""  # U+E7F4  notifications    -> Reminders
+IC_SETTINGS = ""  # U+E8B8  settings
+IC_EXIT     = ""  # U+E8AC  exit_to_app
+IC_INCOME   = ""  # U+E5DB  arrow_downward
+IC_EXPENSE  = ""  # U+E5D8  arrow_upward
+IC_WALLET   = ""  # U+E850  account_balance_wallet
+IC_INFO     = ""  # U+E88E  info
+IC_INBOX    = ""  # U+E156  inbox  (empty state)
+IC_EXPAND   = ""  # U+E5CF  expand_more (chevron down)
+IC_ADD      = ""  # U+E145  add (+)
 
 
 def encryption_enabled() -> bool:
@@ -492,6 +510,7 @@ class IconButton(ButtonBehavior, BoxLayout):
     def __init__(self, *, icon: str | None = None, glyph: str | None = None,
                  text: str = "", width: int = 110, height: int = 44,
                  accent: bool = False, circle: bool = False, icon_size: int = 28,
+                 glyph_font: str = "",
                  **kwargs) -> None:
         if (icon is None) == (glyph is None):
             raise ValueError("IconButton: set exactly one of icon= or glyph=")
@@ -510,9 +529,16 @@ class IconButton(ButtonBehavior, BoxLayout):
         well = BoxLayout(orientation="vertical", size_hint_x=None,
                          width=max(32, icon_size + 6), size_hint_y=1, padding=(0, 2, 2, 2))
         if glyph is not None:
-            self._mark = Label(text=glyph, font_size=icon_size + (10 if circle else 4), bold=True,
-                               color=(1, 1, 1, 1) if accent else ICON_TINT_DEFAULT,
-                               halign="center", valign="middle")
+            lbl_kwargs: dict = dict(
+                text=glyph,
+                font_size=icon_size + (10 if circle else 4),
+                bold=not glyph_font,  # bold only for text glyphs; icon fonts ignore it
+                color=(1, 1, 1, 1) if accent else ICON_TINT_DEFAULT,
+                halign="center", valign="middle",
+            )
+            if glyph_font:
+                lbl_kwargs["font_name"] = glyph_font
+            self._mark = Label(**lbl_kwargs)
             self._mark.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, inst.height)))
         else:
             if icon is None:
@@ -623,50 +649,66 @@ class SummaryCard(BoxLayout):
 # ── New sidebar widgets ───────────────────────────────────────────────────────
 
 class StatCard(BoxLayout):
-    """Individual metric card: icon in circle + title + amount + operation count."""
+    """Metric card: [icon-pill + title] on top row, big amount, then count."""
 
     def __init__(self, *, title: str, glyph: str, amount_color: tuple, **kwargs) -> None:
-        super().__init__(orientation="vertical", size_hint_y=None, height=120,
-                         padding=(14, 12, 14, 10), spacing=4, **kwargs)
+        super().__init__(orientation="vertical", size_hint_y=None, height=110,
+                         padding=(14, 12, 14, 12), spacing=6, **kwargs)
         with self.canvas.before:
             Color(*COL_SURFACE_ELEV)
-            self._bg = RoundedRectangle(radius=[16] * 4)
+            self._bg = RoundedRectangle(pos=self.pos, size=self.size, radius=[14] * 4)
         self.bind(pos=self._sync_bg, size=self._sync_bg)
 
-        # Icon pill
+        # Top row: icon pill (28×28) + title to its right
         r, g, b, _a = amount_color
-        icon_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=36)
-        icon_pill = BoxLayout(size_hint_x=None, width=36, size_hint_y=None, height=36)
-        with icon_pill.canvas.before:
-            Color(r * 0.18, g * 0.18, b * 0.18, 1)
-            _pill = RoundedRectangle(radius=[10] * 4)
-        icon_pill.bind(
-            pos=lambda inst, _v: setattr(_pill, "pos", inst.pos),
-            size=lambda inst, _v: setattr(_pill, "size", inst.size),
+        top_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=28, spacing=10)
+
+        # The icon Label paints its own rounded background — single widget,
+        # no nested BoxLayout, no race with canvas.before initial size.
+        icon_lbl = Label(
+            text=glyph, font_size=15, font_name="MaterialIcons",
+            color=amount_color,
+            size_hint=(None, None), size=(28, 28),
+            halign="center", valign="middle",
         )
-        icon_lbl = Label(text=glyph, font_size=18, color=amount_color,
-                         halign="center", valign="middle")
-        icon_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, inst.height)))
-        icon_pill.add_widget(icon_lbl)
-        icon_row.add_widget(icon_pill)
-        icon_row.add_widget(Widget())
-        self.add_widget(icon_row)
+        icon_lbl.text_size = icon_lbl.size  # center glyph inside the 28×28 box
 
-        # Title
-        t_lbl = Label(text=title, color=COL_MUTED, font_size=FS_SMALL,
-                      halign="left", valign="middle", size_hint_y=None, height=18)
-        t_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
-        self.add_widget(t_lbl)
+        with icon_lbl.canvas.before:
+            Color(r * 0.22, g * 0.22, b * 0.22, 1)
+            self._pill = RoundedRectangle(
+                pos=icon_lbl.pos, size=icon_lbl.size, radius=[8] * 4,
+            )
 
-        # Amount
-        self._amount_lbl = Label(text="0.00", color=amount_color, font_size=19, bold=True,
-                                 halign="left", valign="middle", size_hint_y=None, height=26)
+        def _sync_pill(_inst, _val) -> None:
+            self._pill.pos = icon_lbl.pos
+            self._pill.size = icon_lbl.size
+
+        icon_lbl.bind(pos=_sync_pill, size=_sync_pill)
+        top_row.add_widget(icon_lbl)
+
+        title_lbl = Label(
+            text=title, color=COL_MUTED, font_size=FS_SMALL,
+            halign="left", valign="middle", size_hint_x=1,
+        )
+        title_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
+        top_row.add_widget(title_lbl)
+        self.add_widget(top_row)
+
+        # Amount (big)
+        self._amount_lbl = Label(
+            text="0.00", color=amount_color, font_size=22, bold=True,
+            halign="left", valign="middle",
+            size_hint_y=None, height=28,
+        )
         self._amount_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         self.add_widget(self._amount_lbl)
 
-        # Count
-        self._count_lbl = Label(text="0 операций", color=COL_MUTED, font_size=FS_SMALL,
-                                halign="left", valign="middle", size_hint_y=None, height=18)
+        # Count (small, muted)
+        self._count_lbl = Label(
+            text="0 операций", color=COL_MUTED, font_size=FS_SMALL,
+            halign="left", valign="middle",
+            size_hint_y=None, height=18,
+        )
         self._count_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         self.add_widget(self._count_lbl)
 
@@ -704,9 +746,9 @@ class NavItem(ButtonBehavior, BoxLayout):
         self.bind(pos=self._sync_bg, size=self._sync_bg)
 
         # Glyph
-        self._icon = Label(text=glyph, font_size=15,
+        self._icon = Label(text=glyph, font_size=18, font_name="MaterialIcons",
                            color=COL_ACCENT if active else COL_MUTED,
-                           size_hint_x=None, width=22, halign="center", valign="middle")
+                           size_hint_x=None, width=26, halign="center", valign="middle")
         self._icon.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, inst.height)))
         self.add_widget(self._icon)
 
@@ -741,7 +783,7 @@ class NavItem(ButtonBehavior, BoxLayout):
 class Sidebar(BoxLayout):
     """Left navigation panel."""
 
-    def __init__(self, *, on_overview, on_operations, on_reports,
+    def __init__(self, *, on_overview, on_reports,
                  on_goals, on_reminders, on_exit, **kwargs) -> None:
         super().__init__(orientation="vertical", size_hint_x=None, width=158,
                          padding=(0, 10, 0, 10), spacing=0, **kwargs)
@@ -767,16 +809,15 @@ class Sidebar(BoxLayout):
             self.add_widget(item)
             return item
 
-        _nav("⌂", "Обзор", on_overview, active=True)
-        _nav("⇄", "Операции", on_operations)
-        _nav("≡", "Отчёты", on_reports)
-        _nav("◎", "Цели", on_goals)
-        _nav("◷", "Напом.", on_reminders)
+        _nav(IC_HOME,     "Обзор",        on_overview, active=True)
+        _nav(IC_CHART,    "Отчёты",       on_reports)
+        _nav(IC_FLAG,     "Цели",         on_goals)
+        _nav(IC_BELL,     "Напоминания",  on_reminders)
 
         self.add_widget(Widget(size_hint_y=1))
         self._add_sep()
 
-        exit_item = NavItem(glyph="←", text="Выйти", active=False)
+        exit_item = NavItem(glyph=IC_EXIT, text="Выйти", active=False)
         exit_item.bind(on_release=lambda *_: on_exit())
         self.add_widget(exit_item)
 
@@ -943,7 +984,6 @@ class RootView(BoxLayout):
         # Sidebar
         self.sidebar = Sidebar(
             on_overview=self._show_overview,
-            on_operations=self._show_overview,
             on_reports=self.open_reports_popup,
             on_goals=self.open_goals_popup,
             on_reminders=self.open_reminders_popup,
@@ -975,30 +1015,64 @@ class RootView(BoxLayout):
     def _build_content(self) -> None:
         c = self._content
 
-        # Top bar
+        # Top bar: [mirror-placeholder] [flex] [‹] [Май 2026] [›] [flex] [accounts] [fab]
+        RIGHT_SIDE_W = 52  # fab only
+
         top = BoxLayout(orientation="horizontal", size_hint_y=None, height=52, spacing=8)
-        prev_btn = Button(text="‹", size_hint_x=None, width=32, background_normal="",
-                          background_color=COL_SURFACE_ELEV, color=COL_TEXT, font_size=22)
-        prev_btn.bind(on_release=lambda *_: self._go_prev_month())
-        top.add_widget(prev_btn)
+        top.add_widget(Widget(size_hint_x=None, width=RIGHT_SIDE_W))
 
-        self.month_label = Label(text=month_title_ru(datetime.now(UTC)), font_size=FS_TITLE,
-                                 bold=True, color=COL_TEXT, halign="center", valign="middle",
-                                 size_hint_x=1)
-        self.month_label.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
-        top.add_widget(self.month_label)
+        # Center nav group
+        nav = BoxLayout(orientation="horizontal", size_hint_x=1, spacing=0)
+        nav.add_widget(Widget(size_hint_x=1))
 
-        next_btn = Button(text="›", size_hint_x=None, width=32, background_normal="",
-                          background_color=COL_SURFACE_ELEV, color=COL_TEXT, font_size=22)
-        next_btn.bind(on_release=lambda *_: self._go_next_month())
-        top.add_widget(next_btn)
+        # Compact arrow: Label with tiny dark rounded background, Material Icons chevron
+        def _make_arrow(codepoint: int, on_press) -> ButtonBehavior:
+            btn = BoxLayout(orientation="horizontal",
+                            size_hint=(None, None), width=32, height=32)
+            btn.__class__ = type("_Arrow", (ButtonBehavior, BoxLayout), {})
+            btn = type("_Arrow", (ButtonBehavior, BoxLayout), {})(
+                orientation="horizontal",
+                size_hint=(None, None), width=32, height=32,
+            )
+            with btn.canvas.before:
+                Color(*COL_SURFACE_ELEV)
+                _bg = RoundedRectangle(pos=btn.pos, size=btn.size, radius=[8] * 4)
 
-        accounts_btn = Button(text="Все счета  ▾", size_hint_x=None, width=148,
-                              background_normal="", background_color=COL_SURFACE_ELEV,
-                              color=COL_TEXT, font_size=FS_BODY)
-        top.add_widget(accounts_btn)
+            def _sb(_inst, _val) -> None:
+                _bg.pos = btn.pos
+                _bg.size = btn.size
 
-        add_fab = IconButton(glyph="+", width=52, height=52, accent=True, circle=True, icon_size=28)
+            btn.bind(pos=_sb, size=_sb)
+            lbl = Label(
+                text=chr(codepoint), font_name="MaterialIcons",
+                font_size=18, color=COL_TEXT,
+                halign="center", valign="middle",
+            )
+            lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", inst.size))
+            btn.add_widget(lbl)
+            btn.bind(on_release=lambda *_: on_press())
+            return btn
+
+        nav.add_widget(_make_arrow(0xE5CB, self._go_prev_month))
+
+        self.month_label = Label(
+            text=month_title_ru(datetime.now(UTC)),
+            font_size=FS_TITLE, bold=True, color=COL_TEXT,
+            halign="center", valign="middle",
+            size_hint=(None, None), width=200, height=32,
+            text_size=(200, 32),
+        )
+        nav.add_widget(self.month_label)
+
+        nav.add_widget(_make_arrow(0xE5CC, self._go_next_month))
+
+        nav.add_widget(Widget(size_hint_x=1))
+        top.add_widget(nav)
+
+        add_fab = IconButton(
+            glyph=IC_ADD, glyph_font="MaterialIcons",
+            width=52, height=52, accent=True, circle=True, icon_size=22,
+        )
         add_fab.bind(on_release=lambda *_: self.open_add_popup())
         top.add_widget(add_fab)
         c.add_widget(top)
@@ -1020,17 +1094,18 @@ class RootView(BoxLayout):
                         font_size=FS_SMALL, halign="left", valign="middle", size_hint_x=1)
         sum_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         sum_row.add_widget(sum_lbl)
-        info_lbl = Label(text="ⓘ", color=COL_MUTED, font_size=FS_BODY,
-                         size_hint_x=None, width=24, halign="center", valign="middle")
+        info_lbl = Label(text=IC_INFO, font_name="MaterialIcons", color=COL_MUTED,
+                         font_size=16, size_hint_x=None, width=24,
+                         halign="center", valign="middle")
         info_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, inst.height)))
         sum_row.add_widget(info_lbl)
         c.add_widget(sum_row)
 
         # 3 stat cards
-        stats_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=120, spacing=10)
-        self._card_income = StatCard(title="Доходы", glyph="↓", amount_color=COL_INCOME)
-        self._card_expense = StatCard(title="Расходы", glyph="↑", amount_color=COL_EXPENSE)
-        self._card_balance = StatCard(title="Баланс", glyph="◉", amount_color=COL_TEXT)
+        stats_row = BoxLayout(orientation="horizontal", size_hint_y=None, height=110, spacing=10)
+        self._card_income = StatCard(title="Доходы", glyph=IC_INCOME, amount_color=COL_INCOME)
+        self._card_expense = StatCard(title="Расходы", glyph=IC_EXPENSE, amount_color=COL_EXPENSE)
+        self._card_balance = StatCard(title="Баланс", glyph=IC_WALLET, amount_color=COL_TEXT)
         stats_row.add_widget(self._card_income)
         stats_row.add_widget(self._card_expense)
         stats_row.add_widget(self._card_balance)
@@ -1122,7 +1197,8 @@ class RootView(BoxLayout):
         empty = BoxLayout(orientation="vertical", size_hint_y=None, spacing=14,
                           padding=(0, 28, 0, 0))
 
-        icon_lbl = Label(text="◎", font_size=76, color=(*COL_BORDER[:3], 0.55),
+        icon_lbl = Label(text=IC_INBOX, font_size=76, font_name="MaterialIcons",
+                         color=(*COL_BORDER[:3], 0.55),
                          size_hint_y=None, height=100, halign="center", valign="middle")
         icon_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, inst.height)))
         empty.add_widget(icon_lbl)
@@ -1493,6 +1569,7 @@ class PersonalFinanceApp(App):
     title = "Личные финансы"
 
     def build(self):
+        LabelBase.register("MaterialIcons", FONT_ICONS)
         Window.clearcolor = COL_BG
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         _cleanup_orphaned_plaintext_dbs()
