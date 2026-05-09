@@ -302,3 +302,20 @@ def test_reminders_validation(conn):
         repo.create(name="x", due_at=due, recurrence="yearly")
     with pytest.raises(ValueError):
         repo.create(name="x", due_at=due, amount_cents=-1)
+
+
+def test_rollback_on_duplicate_category_name(conn):
+    repo = CategoryRepository(conn)
+    with transaction(conn):
+        repo.create(name="Еда")
+
+    # Второй create с тем же именем должен упасть с DB constraint
+    import sqlite3
+
+    with pytest.raises(sqlite3.IntegrityError):
+        with transaction(conn):
+            repo.create(name="Еда")
+
+    # После rollback в таблице ровно одна категория (плюс дефолтные)
+    all_cats = conn.execute("SELECT name FROM categories WHERE name='Еда';").fetchall()
+    assert len(all_cats) == 1
