@@ -30,12 +30,32 @@
 ```
 variant43-personal-finance/
   .github/workflows/          # CI (ruff/pytest/pip-audit)
-  scripts/                   # служебные скрипты (бенчмарки)
-  docs/                     # материалы для пояснительной записки, правила
-    report/                  # пояснительная записка (главы)
-    diagrams/                # диаграммы (Mermaid)
-  src/                      # исходный код приложения
-  requirements/             # зависимости (app/dev)
+  scripts/                    # служебные скрипты (бенчмарки)
+  docs/                       # материалы для пояснительной записки, правила
+    report/                   # пояснительная записка (главы)
+    diagrams/                 # диаграммы (Mermaid)
+  src/
+    app.py                    # точка входа: PersonalFinanceApp + startup/crypto
+    core/                     # доменная логика (без внешних зависимостей)
+      models.py               # Transaction, TransactionType
+      reporting.py            # totals_for_period, expense_by_category, expense_by_day
+      perf.py                 # бенчмарк-хелперы
+    infra/
+      db/                     # SQLite: connection, schema, repositories
+      security/               # AES-256-GCM шифрование файла БД
+    ui/                       # UI-слой (Kivy)
+      theme.py                # цвета, иконки, размеры шрифтов, пути к файлам
+      formatting.py           # format_rub, parse_money, month_bounds_utc и др.
+      factories.py            # фабрики виджетов (ui_button, ui_label, …)
+      widgets.py              # ModalSheet, BarTrack, SectionCard, ReportBarRow
+      cards.py                # GoalCard, StatCard, Sidebar, TransactionCard и др.
+      forms.py                # AddTransactionForm
+      screens/
+        overview.py           # AppState + RootView (главный экран)
+        reports.py            # build_reports_popup()
+        goals.py              # build_goals_popup()
+        reminders.py          # build_reminders_popup()
+  requirements/               # зависимости (app/ci/dev)
 ```
 
 ### Окружение разработки (Блок 0)
