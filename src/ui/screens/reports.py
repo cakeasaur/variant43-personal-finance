@@ -10,7 +10,7 @@ from src.core.reporting import expense_by_category, expense_by_day, totals_for_p
 from src.infra.db.repositories import CategoryRepository, TransactionRepository
 from src.ui.cards import SummaryCard
 from src.ui.factories import empty_state_label, palette_color, style_popup
-from src.ui.formatting import format_rub, month_bounds_utc
+from src.ui.formatting import month_bounds_utc
 from src.ui.theme import COL_BORDER
 from src.ui.widgets import ModalSheet, ReportBarRow, SectionCard
 

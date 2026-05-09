@@ -26,16 +26,15 @@ from src.infra.db.repositories import (
 )
 from src.ui.cards import IconButton, Sidebar, StatCard, TransactionCard
 from src.ui.factories import style_popup, ui_label, ui_spinner
-from src.ui.forms import AddTransactionForm
 from src.ui.formatting import (
     FILTER_UI_TO_KIND,
     KIND_UI_TO_KIND,
-    format_rub,
     kind_to_ui,
     month_bounds_utc,
     month_title_ru,
     parse_money,
 )
+from src.ui.forms import AddTransactionForm
 from src.ui.theme import (
     COL_ACCENT,
     COL_BORDER,
@@ -48,8 +47,8 @@ from src.ui.theme import (
     FS_TITLE,
     IC_ADD,
     IC_EXPENSE,
-    IC_INCOME,
     IC_INBOX,
+    IC_INCOME,
     IC_WALLET,
 )
 from src.ui.widgets import ModalSheet

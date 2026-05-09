@@ -28,7 +28,6 @@ from src.ui.theme import (
     FS_AMOUNT,
     FS_BODY,
     FS_SMALL,
-    FS_TITLE,
     IC_BELL,
     IC_CHART,
     IC_EXIT,

@@ -19,7 +19,7 @@ from src.ui.factories import (
     ui_text_input,
 )
 from src.ui.formatting import parse_money
-from src.ui.theme import COL_BORDER, COL_MUTED, COL_TEXT, FS_TITLE
+from src.ui.theme import COL_BORDER, COL_TEXT, FS_TITLE
 from src.ui.widgets import ModalSheet
 
 

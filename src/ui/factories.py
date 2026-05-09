@@ -9,7 +9,6 @@ from kivy.uix.textinput import TextInput
 from src.ui.theme import (
     COL_ACCENT,
     COL_ACCENT_DIM,
-    COL_BORDER,
     COL_DANGER,
     COL_MUTED,
     COL_SURFACE,
@@ -17,7 +16,6 @@ from src.ui.theme import (
     COL_TEXT,
     COL_TOOLBAR_BTN,
     FS_BODY,
-    FS_SMALL,
 )
 
 
