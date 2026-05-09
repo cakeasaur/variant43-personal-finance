@@ -5,11 +5,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
+    from cryptography.exceptions import InvalidTag
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
     _CRYPTO_AVAILABLE = True
 except Exception:  # pragma: no cover - platform-dependent (e.g. Android build without cryptography)
+    InvalidTag = None  # type: ignore[assignment,misc]
     AESGCM = None  # type: ignore[assignment]
     Scrypt = None  # type: ignore[assignment]
     _CRYPTO_AVAILABLE = False
@@ -18,7 +20,7 @@ MAGIC = b"PFM1"  # Personal Finance Manager v1
 SALT_LEN = 16
 NONCE_LEN = 12  # AESGCM nonce length
 KEY_LEN = 32  # 256-bit AES key
-MIN_PASSPHRASE_LEN = 1  # enforce non-empty; UI may impose stricter rules
+MIN_PASSPHRASE_LEN = 8
 
 
 class InvalidPasswordError(Exception):
@@ -35,8 +37,8 @@ class EncryptedBlob:
 def _derive_key(passphrase: str, salt: bytes) -> bytes:
     if not _CRYPTO_AVAILABLE:
         raise RuntimeError("cryptography is not available on this platform")
-    if not isinstance(passphrase, str) or not passphrase:
-        raise ValueError("passphrase must be a non-empty string")
+    if not isinstance(passphrase, str) or len(passphrase) < MIN_PASSPHRASE_LEN:
+        raise ValueError(f"passphrase must be at least {MIN_PASSPHRASE_LEN} characters")
     if len(salt) != SALT_LEN:
         raise ValueError("invalid salt length")
     kdf = Scrypt(salt=salt, length=KEY_LEN, n=2**14, r=8, p=1)  # type: ignore[misc]
@@ -68,7 +70,7 @@ def decrypt_bytes(*, blob: bytes, passphrase: str) -> bytes:
     aes = AESGCM(key)  # type: ignore[misc]
     try:
         return aes.decrypt(nonce, ciphertext, None)
-    except Exception as exc:  # cryptography raises InvalidTag
+    except InvalidTag as exc:  # type: ignore[misc]
         raise InvalidPasswordError("invalid password or corrupted data") from exc
 
 

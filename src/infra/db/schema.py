@@ -29,7 +29,7 @@ def init_schema(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY,
             type TEXT NOT NULL CHECK(type IN ('income','expense')),
-            amount_cents INTEGER NOT NULL CHECK(amount_cents >= 0),
+            amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
             occurred_at TEXT NOT NULL,
             category_id INTEGER NULL REFERENCES categories(id) ON DELETE SET NULL,
             note TEXT NULL,
