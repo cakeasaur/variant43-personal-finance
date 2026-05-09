@@ -24,7 +24,5 @@ class Transaction:
     note: str | None = None
 
     def __post_init__(self) -> None:
-        if self.amount_cents < 0:
-            raise ValueError("amount_cents must be >= 0")
-        if self.amount_cents == 0:
-            raise ValueError("amount_cents must be > 0 (zero-amount transactions are not allowed)")
+        if self.amount_cents <= 0:
+            raise ValueError("amount_cents must be > 0")
