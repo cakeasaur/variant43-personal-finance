@@ -47,6 +47,7 @@ from src.ui.theme import (
     FS_TITLE,
     IC_ADD,
     IC_EXPENSE,
+    IC_INFO,
     IC_INBOX,
     IC_INCOME,
     IC_WALLET,
@@ -173,7 +174,6 @@ class RootView(BoxLayout):
                         font_size=FS_BODY, halign="left", valign="middle", size_hint_x=1)
         sum_lbl.bind(size=lambda inst, _v: setattr(inst, "text_size", (inst.width, None)))
         sum_row.add_widget(sum_lbl)
-        from src.ui.theme import IC_INFO
         info_lbl = Label(text=IC_INFO, font_name="MaterialIcons", color=COL_MUTED,
                          font_size=16, size_hint_x=None, width=24,
                          halign="center", valign="middle")
@@ -249,8 +249,19 @@ class RootView(BoxLayout):
         cats = {c.id: c.name for c in self.cat_repo.list_all()}
 
         def delete_transaction(tx_id: int) -> None:
-            with transaction(self.conn):
-                self.repo.delete(tx_id=tx_id)
+            try:
+                with transaction(self.conn):
+                    self.repo.delete(tx_id=tx_id)
+            except Exception as exc:
+                from kivy.uix.popup import Popup
+                from src.ui.factories import style_popup, ui_label
+                from src.ui.widgets import ModalSheet
+                sheet = ModalSheet(size_hint=(1, 1))
+                sheet.add_widget(ui_label(f"Ошибка удаления: {exc}", height=48))
+                p = Popup(title="Ошибка", content=sheet, size_hint=(0.8, 0.3))
+                style_popup(p)
+                p.open()
+                return
             self.refresh()
 
         for item in tx:

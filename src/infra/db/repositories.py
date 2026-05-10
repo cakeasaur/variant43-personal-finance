@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from ...core.models import Transaction, TransactionType
+from .connection import transaction
+
+_NO_DEADLINE_SORT_KEY = "9999-12-31T00:00:00+00:00"
 
 
 def _now_iso() -> str:
@@ -187,29 +190,30 @@ class Goal:
         return min(1.0, self.current_cents / self.target_cents)
 
 
+def _row_to_goal(r: sqlite3.Row) -> Goal:
+    return Goal(
+        id=int(r["id"]),
+        name=str(r["name"]),
+        target_cents=int(r["target_cents"]),
+        current_cents=int(r["current_cents"]),
+        deadline_at=_dt_from_iso(r["deadline_at"]) if r["deadline_at"] else None,
+        note=r["note"],
+    )
+
+
 class GoalRepository:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
 
     def list_all(self) -> list[Goal]:
         rows = self.conn.execute(
-            """
+            f"""
             SELECT id, name, target_cents, current_cents, deadline_at, note
             FROM goals
-            ORDER BY COALESCE(deadline_at, '9999-12-31T00:00:00+00:00') ASC, id DESC;
+            ORDER BY COALESCE(deadline_at, '{_NO_DEADLINE_SORT_KEY}') ASC, id DESC;
             """
         ).fetchall()
-        return [
-            Goal(
-                id=int(r["id"]),
-                name=str(r["name"]),
-                target_cents=int(r["target_cents"]),
-                current_cents=int(r["current_cents"]),
-                deadline_at=_dt_from_iso(r["deadline_at"]) if r["deadline_at"] else None,
-                note=r["note"],
-            )
-            for r in rows
-        ]
+        return [_row_to_goal(r) for r in rows]
 
     def create(
         self,
@@ -281,33 +285,22 @@ class GoalRepository:
         ).fetchone()
         if row is None:
             return None
-        return Goal(
-            id=int(row["id"]),
-            name=str(row["name"]),
-            target_cents=int(row["target_cents"]),
-            current_cents=int(row["current_cents"]),
-            deadline_at=_dt_from_iso(row["deadline_at"]) if row["deadline_at"] else None,
-            note=row["note"],
-        )
+        return _row_to_goal(row)
 
     def deposit(self, *, goal_id: int, amount_cents: int) -> Goal:
-        """Increment current_cents by amount_cents, capped at target_cents.
-
-        Returns the updated Goal. Raises ValueError if amount_cents <= 0
-        or goal_id does not exist.
-        """
         if amount_cents <= 0:
             raise ValueError("amount_cents must be > 0")
         now = _now_iso()
-        self.conn.execute(
-            """
-            UPDATE goals
-            SET current_cents = MIN(target_cents, current_cents + ?), updated_at = ?
-            WHERE id = ?;
-            """,
-            (int(amount_cents), now, int(goal_id)),
-        )
-        goal = self.get(goal_id=goal_id)
+        with transaction(self.conn):
+            self.conn.execute(
+                """
+                UPDATE goals
+                SET current_cents = MIN(target_cents, current_cents + ?), updated_at = ?
+                WHERE id = ?;
+                """,
+                (int(amount_cents), now, int(goal_id)),
+            )
+            goal = self.get(goal_id=goal_id)
         if goal is None:
             raise ValueError(f"goal {goal_id} not found")
         return goal
@@ -342,6 +335,17 @@ def _add_months(dt: datetime, months: int) -> datetime:
     return datetime(y, m, day, dt.hour, dt.minute, dt.second, tzinfo=dt.tzinfo)
 
 
+def _row_to_reminder(r: sqlite3.Row) -> Reminder:
+    return Reminder(
+        id=int(r["id"]),
+        name=str(r["name"]),
+        amount_cents=int(r["amount_cents"]) if r["amount_cents"] is not None else None,
+        due_at=_dt_from_iso(r["due_at"]),
+        recurrence=str(r["recurrence"]),
+        note=r["note"],
+    )
+
+
 class ReminderRepository:
     def __init__(self, conn: sqlite3.Connection) -> None:
         self.conn = conn
@@ -368,17 +372,7 @@ class ReminderRepository:
             """,
             (_dt_to_iso(now), _dt_to_iso(cutoff)),
         ).fetchall()
-        return [
-            Reminder(
-                id=int(r["id"]),
-                name=str(r["name"]),
-                amount_cents=int(r["amount_cents"]) if r["amount_cents"] is not None else None,
-                due_at=_dt_from_iso(r["due_at"]),
-                recurrence=str(r["recurrence"]),
-                note=r["note"],
-            )
-            for r in rows
-        ]
+        return [_row_to_reminder(r) for r in rows]
 
     def list_due_sorted(self) -> list[Reminder]:
         rows = self.conn.execute(
@@ -388,17 +382,7 @@ class ReminderRepository:
             ORDER BY due_at ASC, id DESC;
             """
         ).fetchall()
-        return [
-            Reminder(
-                id=int(r["id"]),
-                name=str(r["name"]),
-                amount_cents=int(r["amount_cents"]) if r["amount_cents"] is not None else None,
-                due_at=_dt_from_iso(r["due_at"]),
-                recurrence=str(r["recurrence"]),
-                note=r["note"],
-            )
-            for r in rows
-        ]
+        return [_row_to_reminder(r) for r in rows]
 
     def create(
         self,

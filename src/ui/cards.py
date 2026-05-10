@@ -13,7 +13,7 @@ from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 
 from src.ui.factories import ui_button
-from src.ui.formatting import _ops_word, format_rub, recurrence_display
+from src.ui.formatting import ops_word, format_rub, recurrence_display
 from src.ui.theme import (
     COL_ACCENT,
     COL_BORDER,
@@ -337,7 +337,7 @@ class StatCard(BoxLayout):
         self._amount_lbl.text = format_rub(amount_cents)
         if color_override is not None:
             self._amount_lbl.color = color_override
-        self._count_lbl.text = f"{count} {_ops_word(count)}"
+        self._count_lbl.text = f"{count} {ops_word(count)}"
 
 
 class NavItem(ButtonBehavior, BoxLayout):

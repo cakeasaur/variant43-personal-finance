@@ -22,7 +22,7 @@ def format_rub(cents: int) -> str:
     return f"{cents / 100:,.2f}".replace(",", " ")
 
 
-def _ops_word(n: int) -> str:
+def ops_word(n: int) -> str:
     """Russian plural for 'операция'."""
     if 11 <= n % 100 <= 19:
         return "операций"
@@ -43,7 +43,7 @@ def month_bounds_utc(dt: datetime) -> tuple[datetime, datetime]:
         next_month = datetime(dt.year + 1, 1, 1, tzinfo=UTC)
     else:
         next_month = datetime(dt.year, dt.month + 1, 1, tzinfo=UTC)
-    return start, next_month - timedelta(seconds=1)
+    return start, next_month - timedelta(microseconds=1)
 
 
 def recurrence_display(value: str) -> str:

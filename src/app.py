@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import atexit
 import glob
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -18,6 +19,7 @@ from src.infra.db.connection import connect, transaction
 from src.infra.db.repositories import CategoryRepository, TransactionRepository
 from src.infra.db.schema import init_schema
 from src.infra.security.crypto import (
+    MIN_PASSPHRASE_LEN,
     InvalidPasswordError,
     decrypt_file_to_path,
     encrypt_file_to_path,
@@ -136,6 +138,13 @@ class PersonalFinanceApp(App):
             popup.dismiss()
             self.stop()
 
+        def _cleanup_runtime_db() -> None:
+            try:
+                if self._runtime_db_path and self._runtime_db_path != PLAINTEXT_DB_PATH:
+                    self._runtime_db_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+
         def do_unlock(*_a) -> None:
             try:
                 passphrase = pwd.text
@@ -147,8 +156,10 @@ class PersonalFinanceApp(App):
                             raise ValueError("Повторите пароль")
                         if pwd2.text != passphrase:
                             raise ValueError("Пароли не совпадают")
-                        if len(passphrase) < 4:
-                            raise ValueError("Слишком короткий пароль (минимум 4 символа)")
+                        if len(passphrase) < MIN_PASSPHRASE_LEN:
+                            raise ValueError(
+                                f"Слишком короткий пароль (минимум {MIN_PASSPHRASE_LEN} символов)"
+                            )
                     runtime_db = _new_temp_plaintext_db_path()
                     self._runtime_db_path = runtime_db
                     if ENCRYPTED_DB_PATH.exists():
@@ -174,18 +185,10 @@ class PersonalFinanceApp(App):
                 popup.dismiss()
             except InvalidPasswordError:
                 err.text = "Неверный пароль (или файл БД повреждён)."
-                try:
-                    if self._runtime_db_path and self._runtime_db_path != PLAINTEXT_DB_PATH:
-                        self._runtime_db_path.unlink(missing_ok=True)
-                except Exception:
-                    pass
+                _cleanup_runtime_db()
             except Exception as exc:
                 err.text = str(exc)
-                try:
-                    if self._runtime_db_path and self._runtime_db_path != PLAINTEXT_DB_PATH:
-                        self._runtime_db_path.unlink(missing_ok=True)
-                except Exception:
-                    pass
+                _cleanup_runtime_db()
 
         unlock_btn.bind(on_release=do_unlock)
         exit_btn.bind(on_release=do_exit)
@@ -206,7 +209,7 @@ class PersonalFinanceApp(App):
                                      out_path=ENCRYPTED_DB_PATH)
                 runtime_db.unlink(missing_ok=True)
             except Exception:
-                pass
+                logging.exception("Failed to encrypt DB on exit — data may not be saved")
 
 
 if __name__ == "__main__":

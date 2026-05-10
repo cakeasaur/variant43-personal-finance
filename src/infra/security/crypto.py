@@ -41,7 +41,7 @@ def _derive_key(passphrase: str, salt: bytes) -> bytes:
         raise ValueError(f"passphrase must be at least {MIN_PASSPHRASE_LEN} characters")
     if len(salt) != SALT_LEN:
         raise ValueError("invalid salt length")
-    kdf = Scrypt(salt=salt, length=KEY_LEN, n=2**14, r=8, p=1)  # type: ignore[misc]
+    kdf = Scrypt(salt=salt, length=KEY_LEN, n=2**16, r=8, p=1)  # type: ignore[misc]
     return kdf.derive(passphrase.encode("utf-8"))
 
 
