@@ -18,6 +18,7 @@ from src.infra.db.connection import connect, transaction
 from src.infra.db.repositories import CategoryRepository, TransactionRepository
 from src.infra.db.schema import init_schema
 from src.infra.security.crypto import (
+    MIN_PASSPHRASE_LEN,
     InvalidPasswordError,
     decrypt_file_to_path,
     encrypt_file_to_path,
@@ -147,8 +148,10 @@ class PersonalFinanceApp(App):
                             raise ValueError("Повторите пароль")
                         if pwd2.text != passphrase:
                             raise ValueError("Пароли не совпадают")
-                        if len(passphrase) < 4:
-                            raise ValueError("Слишком короткий пароль (минимум 4 символа)")
+                        if len(passphrase) < MIN_PASSPHRASE_LEN:
+                            raise ValueError(
+                                f"Слишком короткий пароль (минимум {MIN_PASSPHRASE_LEN} символов)"
+                            )
                     runtime_db = _new_temp_plaintext_db_path()
                     self._runtime_db_path = runtime_db
                     if ENCRYPTED_DB_PATH.exists():
