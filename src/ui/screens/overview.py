@@ -47,9 +47,9 @@ from src.ui.theme import (
     FS_TITLE,
     IC_ADD,
     IC_EXPENSE,
-    IC_INFO,
     IC_INBOX,
     IC_INCOME,
+    IC_INFO,
     IC_WALLET,
 )
 from src.ui.widgets import ModalSheet
@@ -254,6 +254,7 @@ class RootView(BoxLayout):
                     self.repo.delete(tx_id=tx_id)
             except Exception as exc:
                 from kivy.uix.popup import Popup
+
                 from src.ui.factories import style_popup, ui_label
                 from src.ui.widgets import ModalSheet
                 sheet = ModalSheet(size_hint=(1, 1))

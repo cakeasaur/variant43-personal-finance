@@ -13,7 +13,7 @@ from kivy.uix.label import Label
 from kivy.uix.widget import Widget
 
 from src.ui.factories import ui_button
-from src.ui.formatting import ops_word, format_rub, recurrence_display
+from src.ui.formatting import format_rub, ops_word, recurrence_display
 from src.ui.theme import (
     COL_ACCENT,
     COL_BORDER,
