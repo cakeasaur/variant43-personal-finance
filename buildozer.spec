@@ -11,7 +11,7 @@ version = 0.1.0
 
 # NOTE: `cryptography` is intentionally omitted to keep Android builds reproducible.
 # See `src/app.py:encryption_enabled()` and `docs/ANDROID.md`.
-requirements = python3,kivy,pillow,kivymd
+requirements = python3,kivy,pillow
 
 orientation = portrait
 fullscreen = 0
