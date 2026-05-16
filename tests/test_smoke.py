@@ -6,14 +6,17 @@ from pathlib import Path
 import pytest
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("flet") is None,
+    reason="flet not installed in this environment",
+)
 def test_entrypoint_importable() -> None:
-    """main.py must load without ImportError (catches missing modules like md_app)."""
+    """main_flet.py must load without ImportError."""
     spec = importlib.util.spec_from_file_location(
-        "main", Path(__file__).resolve().parents[1] / "main.py"
+        "main_flet", Path(__file__).resolve().parents[1] / "main_flet.py"
     )
-    assert spec is not None, "main.py not found"
+    assert spec is not None, "main_flet.py not found"
     module = importlib.util.module_from_spec(spec)
-    # exec_module runs top-level code but NOT __main__ block — enough to catch bad imports.
     spec.loader.exec_module(module)
 
 
@@ -44,10 +47,14 @@ def test_crypto_importable() -> None:
 
 
 @pytest.mark.skipif(
-    importlib.util.find_spec("kivy") is None,
-    reason="kivy not installed in this environment",
+    importlib.util.find_spec("flet") is None,
+    reason="flet not installed in this environment",
 )
-def test_src_app_importable() -> None:
-    """src.app must expose PersonalFinanceApp when Kivy is available."""
-    mod = importlib.import_module("src.app")
-    assert hasattr(mod, "PersonalFinanceApp")
+def test_flet_ui_importable() -> None:
+    """src.ui_flet must expose all screen builders when flet is available."""
+    from src.ui_flet.screens.goals import build_goals
+    from src.ui_flet.screens.operations import build_operations
+    from src.ui_flet.screens.overview import build_overview
+    from src.ui_flet.screens.reminders import build_reminders
+    from src.ui_flet.screens.reports import build_reports
+    assert all([build_overview, build_operations, build_goals, build_reminders, build_reports])
