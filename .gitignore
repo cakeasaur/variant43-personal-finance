@@ -36,6 +36,9 @@ CLAUDE.md
 docs/*.docx
 docs/*.pdf
 
+# Local scripts
+scripts/gen_report.py
+
 # App data (local DB, exports, backups) — do not commit
 data/
 *.db
