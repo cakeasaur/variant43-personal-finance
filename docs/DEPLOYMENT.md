@@ -1,13 +1,13 @@
 ## Deploy / Build (cross-platform)
 
-Приложение кроссплатформенное на уровне **одной кодовой базы** (Python + Kivy/KivyMD).
-Сборка под разные платформы делается разными инструментами.
+Приложение кроссплатформенное на уровне **одной кодовой базы** (Python + Flet).
+Сборка под разные платформы делается через `flet build`.
 
-### Desktop (Windows) — PyInstaller
+### Desktop (Windows) — flet build windows
 
 Требования:
 - Python **3.12 x64**
-- установленный Build Tools обычно не нужен (ставятся готовые wheel)
+- Flutter SDK (устанавливается автоматически при первом `flet build`)
 
 Сборка:
 
@@ -18,31 +18,36 @@ py -3.12 -m venv .venv
 python -m pip install -r requirements/app.txt -r requirements/dev.txt
 
 # сборка
-.\scripts\build_win.ps1
+flet build windows --project PersonalFinance
 ```
 
 Артефакт:
-- `dist/PersonalFinance/PersonalFinance.exe`
+- `build/windows/PersonalFinance.exe`
 
-Smoke-проверка (без GUI):
+### Android — flet build apk
 
-```powershell
-dist\PersonalFinance\PersonalFinance.exe --smoke
+Требования:
+- Python 3.12
+- Android SDK (устанавливается автоматически при первом `flet build android`)
+
+```bash
+flet build apk --project PersonalFinance
 ```
 
-Где хранятся данные:
-- В режиме exe база хранится рядом с exe: `dist/PersonalFinance/data/` (создаётся автоматически).
+Артефакт:
+- `build/apk/app-release.apk`
 
-### Android — подготовка (Buildozer)
+> **Примечание по шифрованию на Android:** для воспроизводимой сборки APK
+> рекомендуется использовать `PF_DISABLE_ENCRYPTION=1` или реализовать
+> отдельную логику хранения ключа через Android Keystore.
 
-Важно:
-- Сборка Android обычно делается на Linux (удобно через **WSL2 + Ubuntu**).
-- В репозитории есть `main.py` — это entrypoint, который ожидает Buildozer.
+### Docker (только для проверок, без GUI)
 
-Быстрый план:
-1. Установить Buildozer в WSL (Python 3.11/3.12), Android SDK/NDK.
-2. Сгенерировать/отредактировать `buildozer.spec`.
-3. Собрать `debug` APK: `buildozer -v android debug`.
+```powershell
+docker compose run --rm checks
+```
 
-Подробная инструкция: см. `docs/ANDROID.md`.
-
+Контейнер прогоняет те же проверки, что и CI:
+- `ruff`
+- `pytest`
+- `pip-audit`

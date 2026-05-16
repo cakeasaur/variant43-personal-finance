@@ -2,7 +2,7 @@
 
 **Дисциплина**: «Методы и технологии программирования»  
 **Вариант**: 43 — Приложение для управления личными финансами  
-**Стек**: Python + Kivy + SQLite  
+**Стек**: Python + Flet + SQLite  
 
 ### Краткое описание
 Кроссплатформенное мобильное приложение для учёта доходов/расходов:
@@ -28,33 +28,33 @@
 
 ### Структура проекта
 ```
-variant43-personal-finance/
+variant43-personal-finance-flet/
   .github/workflows/          # CI (ruff/pytest/pip-audit)
-  scripts/                    # служебные скрипты (бенчмарки)
+  scripts/                    # служебные скрипты (бенчмарки, генерация записки)
   docs/                       # материалы для пояснительной записки, правила
     report/                   # пояснительная записка (главы)
     diagrams/                 # диаграммы (Mermaid)
   src/
-    app.py                    # точка входа: PersonalFinanceApp + startup/crypto
     core/                     # доменная логика (без внешних зависимостей)
       models.py               # Transaction, TransactionType
-      reporting.py            # totals_for_period, expense_by_category, expense_by_day
+      reporting.py            # totals_for_period, expense_by_category, expense_by_day, income_by_day
       perf.py                 # бенчмарк-хелперы
     infra/
       db/                     # SQLite: connection, schema, repositories
       security/               # AES-256-GCM шифрование файла БД
-    ui/                       # UI-слой (Kivy)
-      theme.py                # цвета, иконки, размеры шрифтов, пути к файлам
-      formatting.py           # format_rub, parse_money, month_bounds_utc и др.
-      factories.py            # фабрики виджетов (ui_button, ui_label, …)
-      widgets.py              # ModalSheet, BarTrack, SectionCard, ReportBarRow
-      cards.py                # GoalCard, StatCard, Sidebar, TransactionCard и др.
-      forms.py                # AddTransactionForm
+    ui_flet/                  # UI-слой (Flet)
+      theme.py                # цвета, пути к БД
+      state.py                # Repos dataclass
+      components.py           # build_sidebar, metric_card, tx_row, empty_state и др.
       screens/
-        overview.py           # AppState + RootView (главный экран)
-        reports.py            # build_reports_popup()
-        goals.py              # build_goals_popup()
-        reminders.py          # build_reminders_popup()
+        overview.py           # главный экран: метрики, график, цели, операции
+        operations.py         # список операций
+        reports.py            # аналитика
+        goals.py              # финансовые цели
+        reminders.py          # напоминания
+        categories.py         # категории
+        settings.py           # настройки
+  main_flet.py                # точка входа: роутинг, пароль, шифрование
   requirements/               # зависимости (app/ci/dev)
 ```
 
@@ -77,18 +77,10 @@ py -3.12 -m pip install -r requirements/app.txt -r requirements/dev.txt
 ### Проверки качества
 
 > **Два профиля зависимостей:**
-> - `requirements/app.txt` — полный набор для desktop (Kivy + cryptography + Pillow).
-> - `requirements/ci.txt` — облегчённый набор для CI/headless-тестов (только cryptography, **без Kivy**).
->   Именно его использует GitHub Actions, потому что Kivy требует GPU и не устанавливается на headless-серверах.
+> - `requirements/app.txt` — полный набор для desktop (flet, flet-charts, matplotlib, cryptography).
+> - `requirements/ci.txt` — облегчённый набор для CI/headless-тестов (только cryptography, **без flet**).
+>   Именно его использует GitHub Actions — flet требует дисплей и не нужен для headless-тестов.
 
-Локальная проверка (с установленным Kivy):
-```powershell
-py -3.12 -m ruff check .
-py -3.12 -m pytest -q
-py -3.12 -m pip_audit -r requirements/app.txt -r requirements/dev.txt
-```
-
-CI / headless (без Kivy — те же команды, что выполняет GitHub Actions):
 ```powershell
 py -3.12 -m ruff check .
 py -3.12 -m pytest -q
@@ -97,19 +89,20 @@ py -3.12 -m pip_audit -r requirements/ci.txt -r requirements/dev.txt
 
 ### Запуск приложения (desktop)
 
-Основной UI — тёмная тема на Kivy с карточками «Доходы / Расходы / Баланс»,
-списком операций с цветными полосами по типу, отчётами, целями и напоминаниями.
+Основной UI — светлая/тёмная тема на Flet с карточками «Доходы / Расходы / Баланс»,
+списком операций с цветными полосами по типу, отчётами, целями, напоминаниями,
+категориями и настройками.
 
-Рекомендуемый entrypoint (он же используется для сборки exe и Android):
+Entrypoint:
 
 ```powershell
-py -3.12 main.py
+py -3.12 main_flet.py
 ```
 
-Альтернативно (запустить напрямую через модуль):
+Без шифрования (для отладки):
 
 ```powershell
-py -3.12 -m src.app
+$env:PF_DISABLE_ENCRYPTION=1; py -3.12 main_flet.py
 ```
 
 При запуске **на desktop** приложение попросит пароль для локальной БД. Файл БД хранится в `data/` в виде
@@ -161,6 +154,6 @@ docker compose run --rm checks
 
 ### Сборка / Deploy
 - Windows (exe): `scripts/build_win.ps1`
-- Android (структура + инструкция): `buildozer.spec`, `docs/ANDROID.md`
+- Android (инструкция): `docs/ANDROID.md`
 - Общая сводка: `docs/DEPLOYMENT.md`
 
