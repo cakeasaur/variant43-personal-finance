@@ -29,17 +29,15 @@ Thumbs.db
 CLAUDE.md
 .claude/
 
-# Kivy
-*.kv~ 
+# Logs
 *.log
 
-# Legacy/unused assets (keep only *_v3.png variants)
-assets/ui/
-assets/empty_tx.png
-assets/icon_income.png
-assets/icon_expense.png
-assets/icon_balance.png
-assets/icon_goals_v2.png
+# Generated documents
+docs/*.docx
+docs/*.pdf
+
+# Local scripts
+scripts/gen_report.py
 
 # App data (local DB, exports, backups) — do not commit
 data/
@@ -47,12 +45,9 @@ data/
 *.sqlite
 *.sqlite3
 
-# Kivy build/cache artifacts
+# Build artifacts (flet build, PyInstaller)
 .buildozer/
 bin/
-
-# PyInstaller artifacts
 build/
 dist/
-*.spec
 

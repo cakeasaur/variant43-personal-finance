@@ -70,3 +70,18 @@ def expense_by_day(
         d = t.occurred_at.date()
         out[d] = out.get(d, 0) + t.amount_cents
     return out
+
+
+def income_by_day(
+    transactions: Iterable[Transaction],
+    *,
+    start: datetime,
+    end: datetime,
+) -> dict[date, int]:
+    out: dict[date, int] = {}
+    for t in _filter_period(transactions, start, end):
+        if t.type != TransactionType.INCOME:
+            continue
+        d = t.occurred_at.date()
+        out[d] = out.get(d, 0) + t.amount_cents
+    return out

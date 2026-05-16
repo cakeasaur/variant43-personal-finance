@@ -304,6 +304,40 @@ def test_reminders_validation(conn):
         repo.create(name="x", due_at=due, amount_cents=-1)
 
 
+def test_transaction_update(conn):
+    repo = TransactionRepository(conn)
+    base = datetime(2026, 3, 1, 10, 0, tzinfo=UTC)
+    with transaction(conn):
+        tx_id = repo.create(Transaction(TransactionType.EXPENSE, 100, base, note="before"))
+
+    updated = Transaction(TransactionType.INCOME, 200, base + timedelta(hours=1), note="after")
+    with transaction(conn):
+        repo.update(tx_id=tx_id, t=updated)
+
+    stored = repo.list_between(
+        start=base - timedelta(hours=1),
+        end=base + timedelta(hours=2),
+    )
+    row = next(r for r in stored if r.id == tx_id)
+    assert row.transaction.type == TransactionType.INCOME
+    assert row.transaction.amount_cents == 200
+    assert row.transaction.note == "after"
+
+
+def test_reminder_list_due_sorted(conn):
+    repo = ReminderRepository(conn)
+    now = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    with transaction(conn):
+        repo.create(name="Позже",   due_at=now + timedelta(days=3))
+        repo.create(name="Раньше",  due_at=now - timedelta(days=1))
+        repo.create(name="Сегодня", due_at=now)
+
+    result = repo.list_due_sorted()
+    dates = [r.due_at for r in result]
+    assert dates == sorted(dates)
+    assert result[0].name == "Раньше"
+
+
 def test_rollback_on_duplicate_category_name(conn):
     repo = CategoryRepository(conn)
     with transaction(conn):

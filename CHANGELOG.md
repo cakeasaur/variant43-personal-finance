@@ -1,5 +1,27 @@
 ## Changelog
 
+### [0.2.0] — 2026-05-17
+
+#### Changed
+- Migrated UI layer from Kivy to Flet 0.85.1 (Flutter-based renderer)
+- New entrypoint: `main_flet.py` (replaces `main.py` + `src/app.py`)
+- Overview screen redesigned: delta metrics vs previous month, top expense
+  categories panel, dynamic income/expenses chart (matplotlib → PNG)
+
+#### Added
+- Categories screen: full CRUD with type badge (income / expense / both)
+- Settings screen: password change, encryption status, app info
+- `income_by_day()` reporting function for dual-line chart
+
+#### Fixed
+- Encryption on window close: LIFO atexit race — temp DB was deleted before
+  `shutdown_encrypt` could encrypt it; fixed by removing atexit from `_new_temp_db`
+- Empty states centered horizontally across all screens
+- Transaction rows without category: name centered vertically, no "—" placeholder
+
+#### Removed
+- Kivy UI layer (`src/ui/`, `src/app.py`, `main.py`, `buildozer.spec`)
+
 ### [0.1.0] — 2026-04-29
 
 #### Added
